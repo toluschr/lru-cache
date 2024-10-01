@@ -30,8 +30,8 @@ void lru_cache_print(struct lru_cache *s, FILE *file)
     bool visited[s->nmemb];
     memset(visited, 0, sizeof(visited));
 
-    for (int i = 0; i < s->nmemb; i++) {
-        printf("[%d]", i);
+    for (uint32_t i = 0; i < s->nmemb; i++) {
+        fprintf(file, "[%d]", i);
 
         uint32_t entry_id = s->hashmap[i];
         struct lru_cache_entry *entry = NULL;
@@ -39,12 +39,12 @@ void lru_cache_print(struct lru_cache *s, FILE *file)
         while (entry_id != CACHE_ENTRY_NIL) {
             entry = get_entry(s, entry_id);
 
-            printf(" --> %d", entry_id);
+            fprintf(file, " --> %d", entry_id);
 
             entry_id = entry->clru;
         }
 
-        printf("\n");
+        fprintf(file, "\n");
     }
 }
 
