@@ -18,7 +18,7 @@ struct lru_cache_entry {
     char key[];
 };
 
-typedef void (*lru_cache_destroy_t)(void *a);
+typedef void (*lru_cache_destroy_t)(void *a, uint32_t index);
 typedef int (*lru_cache_compare_t)(const void *a, const void *b);
 typedef uint32_t (*lru_cache_hash_t)(const void *a);
 
