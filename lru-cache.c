@@ -200,6 +200,7 @@ void lru_cache_flush(struct lru_cache *s)
     while (s->destroy && i != LRU_CACHE_ENTRY_NIL) {
         e = lru_cache_get_entry(s, i);
         s->destroy(e->key);
+        i = e->mru;
     }
 
     s->lru = 0;
