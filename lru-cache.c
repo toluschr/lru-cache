@@ -42,7 +42,7 @@ void lru_cache_print(struct lru_cache *s, FILE *file)
 
     i = s->mru;
 
-    fprintf(file, "Unused nodes (MRU -> LRU)\n");
+    fprintf(file, "Unused ML");
     while (i != LRU_CACHE_ENTRY_NIL) {
         struct lru_cache_entry *e = lru_cache_get_entry(s, i);
 
@@ -178,6 +178,8 @@ access_and_rearrange:
     if (s->mru != i) {
         if (e->lru != LRU_CACHE_ENTRY_NIL) {
             lru_cache_get_entry(s, e->lru)->mru = e->mru;
+        } else {
+            s->lru = lru_cache_get_entry(s, s->lru)->mru;
         }
 
         if (e->mru != LRU_CACHE_ENTRY_NIL) {
@@ -189,7 +191,6 @@ access_and_rearrange:
         e->lru = s->mru;
         s->mru = i;
 
-        s->lru = e->mru;
         e->mru = LRU_CACHE_ENTRY_NIL;
     }
 
