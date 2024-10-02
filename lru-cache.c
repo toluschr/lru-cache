@@ -9,10 +9,13 @@
 
 void lru_cache_print(struct lru_cache *s, FILE *file)
 {
+    uint32_t i;
     bool visited[s->nmemb];
+    uint32_t nvisited = 0;
+
     memset(visited, 0, sizeof(visited));
 
-    for (uint32_t i = 0; i < s->nmemb; i++) {
+    for (i = 0; i < s->nmemb; i++) {
         fprintf(file, "[%d]", i);
 
         uint32_t entry_id = s->hashmap[i];
@@ -20,11 +23,13 @@ void lru_cache_print(struct lru_cache *s, FILE *file)
 
         while (entry_id != LRU_CACHE_ENTRY_NIL) {
             if (visited[entry_id]) {
-                fprintf(file, " --> ((CORRUPTION))");
+                fprintf(file, " --> %d ((CORRUPTION))", entry_id);
                 break;
             }
 
             visited[entry_id] = true;
+            nvisited++;
+
             entry = lru_cache_get_entry(s, entry_id);
 
             fprintf(file, " --> %d", entry_id);
@@ -33,6 +38,34 @@ void lru_cache_print(struct lru_cache *s, FILE *file)
         }
 
         fprintf(file, "\n");
+    }
+
+    i = s->mru;
+
+    fprintf(file, "Unused nodes (MRU -> LRU)\n");
+    while (i != LRU_CACHE_ENTRY_NIL) {
+        struct lru_cache_entry *e = lru_cache_get_entry(s, i);
+
+        if (e->clru == i) {
+            if (visited[i]) {
+                fprintf(file, " --> %d ((CORRUPTION))", i);
+                break;
+            }
+
+            visited[i] = true;
+            nvisited++;
+            fprintf(file, " --> %d", i);
+        }
+
+        i = e->lru;
+    }
+    fprintf(file, "\n");
+
+    fprintf(file, "LRU: %d\n", s->lru);
+    fprintf(file, "MRU: %d\n", s->mru);
+
+    if (nvisited != s->nmemb) {
+        fprintf(file, "%d entries are unlinked ((CORRUPTION))\n", s->nmemb - nvisited);
     }
 }
 
