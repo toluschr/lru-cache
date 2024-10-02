@@ -7,7 +7,6 @@
 #include <memory.h>
 #include <errno.h>
 
-/*
 void lru_cache_print(struct lru_cache *s, FILE *file)
 {
     bool visited[s->nmemb];
@@ -20,6 +19,12 @@ void lru_cache_print(struct lru_cache *s, FILE *file)
         struct lru_cache_entry *entry = NULL;
 
         while (entry_id != LRU_CACHE_ENTRY_NIL) {
+            if (visited[entry_id]) {
+                fprintf(file, " --> ((CORRUPTION))");
+                break;
+            }
+
+            visited[entry_id] = true;
             entry = lru_cache_get_entry(s, entry_id);
 
             fprintf(file, " --> %d", entry_id);
@@ -30,7 +35,6 @@ void lru_cache_print(struct lru_cache *s, FILE *file)
         fprintf(file, "\n");
     }
 }
-*/
 
 int lru_cache_init_size(struct lru_cache *s, uint32_t size, uint32_t nmemb, uint32_t align, size_t *hashmap_bytes, size_t *cache_bytes)
 {

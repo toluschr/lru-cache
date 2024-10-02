@@ -1,6 +1,7 @@
 #ifndef LRU_CACHE_H_
 #define LRU_CACHE_H_
 
+#include <stdio.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -173,5 +174,7 @@ bool lru_cache_get_or_put(struct lru_cache *s,
  * @param s Pointer to the lru_cache structure.
  */
 void lru_cache_flush(struct lru_cache *s);
+
+void lru_cache_print(struct lru_cache *s, FILE *file);
 
 #endif // LRU_CACHE_H_
