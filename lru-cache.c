@@ -5,26 +5,9 @@
 
 #include <assert.h>
 #include <memory.h>
+#include <errno.h>
 
-#define CACHE_ENTRY_NIL UINT32_MAX
-
-uint32_t lru_cache_get_entry_offset(uint32_t i, uint32_t s)
-{
-    return i * (sizeof(struct lru_cache_entry) + s);
-}
-
-struct lru_cache_entry *get_entry(struct lru_cache *s, uint32_t i)
-{
-    if (i == CACHE_ENTRY_NIL) {
-        return NULL;
-    }
-
-    char *cache = s->cache;
-    uint32_t offset = lru_cache_get_entry_offset(i, s->size);
-
-    return (struct lru_cache_entry *)(cache + offset);
-}
-
+/*
 void lru_cache_print(struct lru_cache *s, FILE *file)
 {
     bool visited[s->nmemb];
@@ -36,8 +19,8 @@ void lru_cache_print(struct lru_cache *s, FILE *file)
         uint32_t entry_id = s->hashmap[i];
         struct lru_cache_entry *entry = NULL;
 
-        while (entry_id != CACHE_ENTRY_NIL) {
-            entry = get_entry(s, entry_id);
+        while (entry_id != LRU_CACHE_ENTRY_NIL) {
+            entry = lru_cache_get_entry(s, entry_id);
 
             fprintf(file, " --> %d", entry_id);
 
@@ -47,21 +30,97 @@ void lru_cache_print(struct lru_cache *s, FILE *file)
         fprintf(file, "\n");
     }
 }
+*/
 
+int lru_cache_init_size(struct lru_cache *s, uint32_t size, uint32_t nmemb, uint32_t align, size_t *hashmap_bytes, size_t *cache_bytes)
+{
+    uint32_t aligned_size = (size + align - 1) & ~(align - 1);
+    uint32_t nmemb_max = SIZE_MAX / (sizeof(struct lru_cache_entry) + aligned_size);
+
+    if (size == 0 || nmemb == 0 || align == 0 || align > sizeof(struct lru_cache_entry)) {
+        return EINVAL;
+    }
+
+    if (aligned_size < size) {
+        return EOVERFLOW;
+    }
+
+    if (s->nmemb > nmemb_max) {
+        return EOVERFLOW;
+    }
+
+    s->size = aligned_size;
+    s->nmemb = nmemb;
+
+    if (hashmap_bytes) {
+        *hashmap_bytes = s->nmemb * sizeof(uint32_t);
+    }
+
+    if (cache_bytes) {
+        *cache_bytes = s->nmemb * (sizeof(struct lru_cache_entry) + s->size);
+    }
+
+    return 0;
+}
+
+int lru_cache_init_memory(struct lru_cache *s, void *hashmap, void *cache, lru_cache_hash_t hash, lru_cache_compare_t compare, lru_cache_destroy_t destroy)
+{
+    size_t hashmap_bytes = s->nmemb * sizeof(uint32_t);
+    size_t cache_bytes = s->nmemb * (sizeof(struct lru_cache_entry) + s->size);
+
+    if (compare == NULL || hash == NULL) {
+        return EINVAL;
+    }
+
+    if (UINTPTR_MAX - (uintptr_t)cache < cache_bytes) {
+        return EOVERFLOW;
+    }
+
+    if (UINTPTR_MAX - (uintptr_t)hashmap < hashmap_bytes) {
+        return EOVERFLOW;
+    }
+
+    s->hashmap = hashmap;
+    s->cache = cache;
+
+    s->destroy = destroy;
+    s->compare = compare;
+    s->hash = hash;
+
+    // cache is empty
+    s->lru = LRU_CACHE_ENTRY_NIL;
+    lru_cache_flush(s);
+
+    return 0;
+}
+
+struct lru_cache_entry *lru_cache_get_entry(struct lru_cache *s, uint32_t i)
+{
+    if (i == LRU_CACHE_ENTRY_NIL) {
+        return NULL;
+    }
+
+    char *cache = s->cache;
+    size_t offset = i * (sizeof(struct lru_cache_entry) + s->size);
+
+    return (struct lru_cache_entry *)(cache + offset);
+}
+
+// @todo: Atomic access
 bool lru_cache_get_or_put(struct lru_cache *s, const void *key, uint32_t *index)
 {
     bool found = false;
-    uint32_t hash = s->hash(key, s->size);
+    uint32_t hash = s->hash(key);
     uint32_t old_hash = hash;
 
     uint32_t i = s->hashmap[hash % s->nmemb];
 
     struct lru_cache_entry *e = NULL;
 
-    while (i != CACHE_ENTRY_NIL) {
-        e = get_entry(s, i);
+    while (i != LRU_CACHE_ENTRY_NIL) {
+        e = lru_cache_get_entry(s, i);
 
-        if (s->compare(e->key, key, s->size) == 0) {
+        if (s->compare(e->key, key) == 0) {
             found = true;
             goto access_and_rearrange;
         }
@@ -71,56 +130,56 @@ bool lru_cache_get_or_put(struct lru_cache *s, const void *key, uint32_t *index)
 
     // remove from collision chain
     i = s->lru;
-    e = get_entry(s, i);
+    e = lru_cache_get_entry(s, i);
 
-    old_hash = s->hash(e->key, s->size);
+    old_hash = s->hash(e->key);
 
     if (s->destroy)
-        s->destroy(e->key, s->size);
+        s->destroy(e->key);
 
     memcpy(e->key, key, s->size);
 
 access_and_rearrange:
     // Make current entry most recently used in the global chain if not already
     if (s->mru != i) {
-        if (e->lru != CACHE_ENTRY_NIL) {
-            get_entry(s, e->lru)->mru = e->mru;
+        if (e->lru != LRU_CACHE_ENTRY_NIL) {
+            lru_cache_get_entry(s, e->lru)->mru = e->mru;
         }
 
-        if (e->mru != CACHE_ENTRY_NIL) {
-            get_entry(s, e->mru)->lru = e->lru;
+        if (e->mru != LRU_CACHE_ENTRY_NIL) {
+            lru_cache_get_entry(s, e->mru)->lru = e->lru;
         }
 
-        get_entry(s, s->mru)->mru = i;
+        lru_cache_get_entry(s, s->mru)->mru = i;
 
         e->lru = s->mru;
         s->mru = i;
 
         s->lru = e->mru;
-        e->mru = CACHE_ENTRY_NIL;
+        e->mru = LRU_CACHE_ENTRY_NIL;
 
-        assert((e->lru == CACHE_ENTRY_NIL) || (get_entry(s, e->lru)->mru == i));
-        assert((e->mru == CACHE_ENTRY_NIL) || (get_entry(s, e->mru)->lru == i));
+        assert((e->lru == LRU_CACHE_ENTRY_NIL) || (lru_cache_get_entry(s, e->lru)->mru == i));
+        assert((e->mru == LRU_CACHE_ENTRY_NIL) || (lru_cache_get_entry(s, e->mru)->lru == i));
 
-        assert(s->lru != CACHE_ENTRY_NIL);
+        assert(s->lru != LRU_CACHE_ENTRY_NIL);
         assert(s->mru == i);
     }
 
     // Make current entry most recently used in the local chain if not already
     if (s->hashmap[hash % s->nmemb] != i) {
-        if (e->clru != CACHE_ENTRY_NIL) {
-            get_entry(s, e->clru)->cmru = e->cmru;
+        if (e->clru != LRU_CACHE_ENTRY_NIL) {
+            lru_cache_get_entry(s, e->clru)->cmru = e->cmru;
         }
 
-        if (e->cmru != CACHE_ENTRY_NIL) {
-            get_entry(s, e->cmru)->clru = e->clru;
+        if (e->cmru != LRU_CACHE_ENTRY_NIL) {
+            lru_cache_get_entry(s, e->cmru)->clru = e->clru;
         } else if (e->clru != i) {
             s->hashmap[old_hash % s->nmemb] = e->clru;
         }
 
         e->clru = s->hashmap[hash % s->nmemb];
-        if (e->clru != CACHE_ENTRY_NIL) {
-            get_entry(s, e->clru)->cmru = i;
+        if (e->clru != LRU_CACHE_ENTRY_NIL) {
+            lru_cache_get_entry(s, e->clru)->cmru = i;
         }
 
         s->hashmap[hash % s->nmemb] = i;
@@ -133,124 +192,28 @@ access_and_rearrange:
     return found;
 }
 
-uint32_t my_hash(const void *a_, size_t l)
-{
-    const char *a = a_;
-    uint32_t out = 2147483647;
-
-    if (a[0] == 1) return 0;
-
-    while (l--) {
-        out ^= *a++;
-        out = (out >> 1) | (out << 31);
-    }
-
-    return out;
-}
-
 void lru_cache_flush(struct lru_cache *s)
 {
-}
+    uint32_t i = s->lru;
+    struct lru_cache_entry *e;
 
-void lru_cache_init_in_memory(struct lru_cache *s, size_t size, size_t nmemb, void *hashmap, void *cache, lru_cache_destroy_t destroy, lru_cache_compare_t compare, lru_cache_hash_t hash)
-{
-    s->nmemb = nmemb;
-    s->size = size;
-
-    s->hashmap = hashmap;
-    s->cache = cache;
-
-    s->destroy = destroy;
-    s->compare = compare;
-    s->hash = hash;
+    while (s->destroy && i != LRU_CACHE_ENTRY_NIL) {
+        e = lru_cache_get_entry(s, i);
+        s->destroy(e->key);
+    }
 
     s->lru = 0;
     s->mru = s->nmemb - 1;
 
-    for (uint32_t i = 0; i < s->nmemb; i++) {
-        struct lru_cache_entry *cur = get_entry(s, i);
+    for (i = 0; i < s->nmemb; i++) {
+        e = lru_cache_get_entry(s, i);
 
-        cur->lru = (i > 0) ? (i - 1) : CACHE_ENTRY_NIL;
-        cur->mru = (i < s->nmemb - 1) ? (i + 1) : CACHE_ENTRY_NIL;
+        e->lru = (i > 0) ? (i - 1) : LRU_CACHE_ENTRY_NIL;
+        e->mru = (i < s->nmemb - 1) ? (i + 1) : LRU_CACHE_ENTRY_NIL;
 
-        cur->clru = i;
-        cur->cmru = CACHE_ENTRY_NIL;
+        e->clru = i;
+        e->cmru = LRU_CACHE_ENTRY_NIL;
 
-        s->hashmap[i] = CACHE_ENTRY_NIL;
+        s->hashmap[i] = LRU_CACHE_ENTRY_NIL;
     }
 }
-
-/*
-int main()
-{
-    struct lru_cache c;
-    c.nmemb = 2;
-    c.size = sizeof(char);
-
-    // lru_cache_init_in_memory();
-
-    uint32_t cache_size = c.nmemb * (sizeof(struct lru_cache_entry) + c.size);
-    uint32_t hashmap_size = c.nmemb * sizeof(uint32_t);
-
-    c.cache = malloc(cache_size);
-    c.hashmap = malloc(hashmap_size);
-
-    c.destroy = NULL;
-    c.compare = memcmp;
-    c.hash = my_hash;
-
-    for (uint32_t i = 0; i < c.nmemb; i++) {
-        struct lru_cache_entry *cur = get_entry(&c, i);
-
-        cur->lru = (i > 0) ? (i - 1) : CACHE_ENTRY_NIL;
-        cur->mru = (i < c.nmemb - 1) ? (i + 1) : CACHE_ENTRY_NIL;
-
-        cur->clru = i;
-        cur->cmru = CACHE_ENTRY_NIL;
-
-        c.hashmap[i] = CACHE_ENTRY_NIL;
-    }
-
-    c.lru = 0;
-    c.mru = c.nmemb - 1;
-
-    printf("%d\n", lru_cache_get_or_put(&c, "\0", NULL));
-    printf("%d\n", lru_cache_get_or_put(&c, "\1", NULL));
-    printf("%d\n", lru_cache_get_or_put(&c, "\1", NULL));
-    printf("%d\n", lru_cache_get_or_put(&c, "\1", NULL));
-    printf("%d\n", lru_cache_get_or_put(&c, "\0", NULL));
-    printf("%d\n", lru_cache_get_or_put(&c, "\1", NULL));
-    printf("%d\n", lru_cache_get_or_put(&c, "\0", NULL));
-    // printf("%d\n", lru_cache_get_or_put(&c, "\0", NULL));
-    // printf("%d\n", lru_cache_get_or_put(&c, "\0", NULL));
-
-    // lru_cache_get_or_put(&c, "b", NULL);
-    // lru_cache_get_or_put(&c, "c", NULL);
-    // lru_cache_get_or_put(&c, "d", NULL);
-    // lru_cache_get_or_put(&c, "e", NULL);
-    // lru_cache_get_or_put(&c, "f", NULL);
-    // lru_cache_get_or_put(&c, "g", NULL);
-    // lru_cache_get_or_put(&c, "h", NULL);
-    // lru_cache_get_or_put(&c, "i", NULL);
-    // lru_cache_get_or_put(&c, "j", NULL);
-    // lru_cache_get_or_put(&c, "k", NULL);
-    // lru_cache_get_or_put(&c, "l", NULL);
-    // lru_cache_get_or_put(&c, "m", NULL);
-    // lru_cache_get_or_put(&c, "n", NULL);
-    // lru_cache_get_or_put(&c, "o", NULL);
-    // lru_cache_get_or_put(&c, "p", NULL);
-    // lru_cache_get_or_put(&c, "q", NULL);
-    // lru_cache_get_or_put(&c, "r", NULL);
-    // lru_cache_get_or_put(&c, "s", NULL);
-    // lru_cache_get_or_put(&c, "t", NULL);
-    // lru_cache_get_or_put(&c, "u", NULL);
-    // lru_cache_get_or_put(&c, "v", NULL);
-    // lru_cache_get_or_put(&c, "w", NULL);
-    // lru_cache_get_or_put(&c, "x", NULL);
-    // lru_cache_get_or_put(&c, "y", NULL);
-    // lru_cache_get_or_put(&c, "z", NULL);
-
-    // printf("%d, %d\n", cache_size, hashmap_size);
-}
-*/
-
