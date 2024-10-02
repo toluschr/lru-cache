@@ -157,12 +157,6 @@ access_and_rearrange:
 
         s->lru = e->mru;
         e->mru = LRU_CACHE_ENTRY_NIL;
-
-        assert((e->lru == LRU_CACHE_ENTRY_NIL) || (lru_cache_get_entry(s, e->lru)->mru == i));
-        assert((e->mru == LRU_CACHE_ENTRY_NIL) || (lru_cache_get_entry(s, e->mru)->lru == i));
-
-        assert(s->lru != LRU_CACHE_ENTRY_NIL);
-        assert(s->mru == i);
     }
 
     // Make current entry most recently used in the local chain if not already
@@ -178,6 +172,8 @@ access_and_rearrange:
         }
 
         e->clru = s->hashmap[hash % s->nmemb];
+        e->cmru = LRU_CACHE_ENTRY_NIL;
+
         if (e->clru != LRU_CACHE_ENTRY_NIL) {
             lru_cache_get_entry(s, e->clru)->cmru = i;
         }
@@ -188,6 +184,15 @@ access_and_rearrange:
     if (index) {
         *index = i;
     }
+
+    assert((e->clru == LRU_CACHE_ENTRY_NIL) || (lru_cache_get_entry(s, e->clru)->cmru == i));
+    assert((e->cmru == LRU_CACHE_ENTRY_NIL) || (lru_cache_get_entry(s, e->cmru)->clru == i));
+
+    assert((e->lru == LRU_CACHE_ENTRY_NIL) || (lru_cache_get_entry(s, e->lru)->mru == i));
+    assert((e->mru == LRU_CACHE_ENTRY_NIL) || (lru_cache_get_entry(s, e->mru)->lru == i));
+
+    assert(s->lru != LRU_CACHE_ENTRY_NIL);
+    assert(s->mru == i);
 
     return found;
 }
