@@ -96,14 +96,9 @@ int lru_cache_init_memory(struct lru_cache *s, void *hashmap, void *cache, lru_c
 
 struct lru_cache_entry *lru_cache_get_entry(struct lru_cache *s, uint32_t i)
 {
-    if (i == LRU_CACHE_ENTRY_NIL) {
-        return NULL;
-    }
-
     char *cache = s->cache;
     size_t offset = i * (sizeof(struct lru_cache_entry) + s->size);
-
-    return (struct lru_cache_entry *)(cache + offset);
+    return (i != LRU_CACHE_ENTRY_NIL) ? (struct lru_cache_entry *)(cache + offset) : NULL;
 }
 
 // @todo: Atomic access
