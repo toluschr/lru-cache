@@ -133,8 +133,9 @@ bool lru_cache_get_or_put(struct lru_cache *s, const void *key, uint32_t *index)
 
     old_hash = s->hash(e->key);
 
-    if (s->destroy)
+    if (e->clru != i && s->destroy) {
         s->destroy(e->key, i);
+    }
 
     memcpy(e->key, key, s->size);
 
@@ -198,7 +199,11 @@ void lru_cache_flush(struct lru_cache *s)
 
     while (s->destroy && i != LRU_CACHE_ENTRY_NIL) {
         e = lru_cache_get_entry(s, i);
-        s->destroy(e->key, i);
+
+        if (e->clru != i) {
+            s->destroy(e->key, i);
+        }
+
         i = e->mru;
     }
 
