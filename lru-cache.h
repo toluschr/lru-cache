@@ -147,22 +147,31 @@ struct lru_cache_entry *lru_cache_get_entry(struct lru_cache *s,
 /**
  * @brief Retrieves or inserts a cache entry based on the provided key.
  *
- * If the key already exists in the cache, this function updates its position to
- * the most recently used (MRU) and returns true. If the key does not exist,
- * a new entry is created; if the cache is full, the least recently used (LRU)
- * entry is evicted.
+ * This function attempts to retrieve a cache entry based on the given key. If the key is found,
+ * it updates the entry's position in the cache to make it the most recently used (MRU) and
+ * returns the entry's index. If the key is not found and the `put` parameter is non-NULL, a new
+ * entry is created and marked as MRU. If the cache is full, the least recently used (LRU) entry
+ * is evicted. The `destroy` function will be called for the evicted entry if provided.
  *
- * If the entry is evicted, the destroy function will be called for the
- * evicted entry if it is provided.
+ * If the `put` parameter is NULL, the function behaves as a "get" operation and does not modify
+ * the cache. It will return the index of the found entry or `LRU_CACHE_ENTRY_NIL` if the key is
+ * not found.
  *
- * @param s Pointer to the lru_cache structure.
- * @param key Pointer to the key to be inserted or searched for; must not be NULL.
- * @param index Pointer to store the index of the found or newly inserted entry; may be NULL.
- * @return true if the entry was found (existing), false if it was newly created.
+ * The `put` boolean pointer, if non-NULL, will indicate whether a new entry was inserted (`true`)
+ * or the key was found (`false`).
+ *
+ * @remark If an error occurs, the cache object remains unchanged.
+ *
+ * @param s Pointer to the lru_cache structure. Must not be NULL.
+ * @param key Pointer to the key to be searched for or inserted; must not be NULL.
+ * @param put Pointer to a boolean that will be set to `true` if a new entry was inserted, or
+ *            `false` if the key was found. If NULL, the function only performs a lookup.
+ * @return The index of the found or newly inserted cache entry. If the key is not found and `put`
+ *         is NULL, `LRU_CACHE_ENTRY_NIL` is returned.
  */
-bool lru_cache_get_or_put(struct lru_cache *s,
-                          const void *key,
-                          uint32_t *index);
+uint32_t lru_cache_get_or_put(struct lru_cache *s,
+                              const void *key,
+                              bool *put);
 
 /**
  * @brief Flushes the entire cache, destroying all entries.

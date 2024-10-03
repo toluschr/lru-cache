@@ -139,9 +139,8 @@ struct lru_cache_entry *lru_cache_get_entry(struct lru_cache *s, uint32_t i)
 }
 
 // @todo: Atomic access
-bool lru_cache_get_or_put(struct lru_cache *s, const void *key, uint32_t *index)
+uint32_t lru_cache_get_or_put(struct lru_cache *s, const void *key, bool *put)
 {
-    bool found = true;
     uint32_t hash = s->hash(key);
     uint32_t old_hash = hash;
 
@@ -153,14 +152,22 @@ bool lru_cache_get_or_put(struct lru_cache *s, const void *key, uint32_t *index)
         e = lru_cache_get_entry(s, i);
 
         if (s->compare(e->key, key) == 0) {
+            if (put) {
+                *put = false;
+            }
+
             goto access_and_rearrange;
         }
 
         i = e->clru;
     }
 
+    if (!put) {
+        return LRU_CACHE_ENTRY_NIL;
+    }
+
     // remove from collision chain
-    found = false;
+    *put = true;
 
     i = s->lru;
     e = lru_cache_get_entry(s, i);
@@ -216,10 +223,6 @@ access_and_rearrange:
         s->hashmap[hash % s->nmemb] = i;
     }
 
-    if (index) {
-        *index = i;
-    }
-
     assert((e->clru == LRU_CACHE_ENTRY_NIL) || (lru_cache_get_entry(s, e->clru)->cmru == i));
     assert((e->cmru == LRU_CACHE_ENTRY_NIL) || (lru_cache_get_entry(s, e->cmru)->clru == i));
 
@@ -229,7 +232,7 @@ access_and_rearrange:
     assert(s->lru != LRU_CACHE_ENTRY_NIL);
     assert(s->mru == i);
 
-    return found;
+    return i;
 }
 
 void lru_cache_flush(struct lru_cache *s)

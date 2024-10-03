@@ -32,6 +32,7 @@ int my_compare(const void *a_, const void *b_)
 
 static void test_cache_collision_first_in_local_chain(void)
 {
+    bool put;
     struct lru_cache c;
     size_t hashmap_bytes, cache_bytes;
     void *hashmap, *cache;
@@ -44,15 +45,15 @@ static void test_cache_collision_first_in_local_chain(void)
     assert(lru_cache_init_memory(&c, hashmap, cache, hash_to_zero, my_compare, NULL) == 0);
 
     // a and b have the same hash and can both be uniquely inserted
-    assert(lru_cache_get_or_put(&c, "a", NULL) == 0);
-    assert(lru_cache_get_or_put(&c, "b", NULL) == 0);
+    assert(lru_cache_get_or_put(&c, "a", &put) != LRU_CACHE_ENTRY_NIL && put);
+    assert(lru_cache_get_or_put(&c, "b", &put) != LRU_CACHE_ENTRY_NIL && put);
 
     // a and b should not evict each other from the cache
-    assert(lru_cache_get_or_put(&c, "a", NULL) == 1);
-    assert(lru_cache_get_or_put(&c, "b", NULL) == 1);
+    assert(lru_cache_get_or_put(&c, "a", NULL) != LRU_CACHE_ENTRY_NIL);
+    assert(lru_cache_get_or_put(&c, "b", NULL) != LRU_CACHE_ENTRY_NIL);
 
-    assert(lru_cache_get_or_put(&c, "c", NULL) == 0);
-    assert(lru_cache_get_or_put(&c, "c", NULL) == 1);
+    assert(lru_cache_get_or_put(&c, "c", &put) != LRU_CACHE_ENTRY_NIL && put);
+    assert(lru_cache_get_or_put(&c, "c", NULL) != LRU_CACHE_ENTRY_NIL);
 
     free(hashmap);
     free(cache);
@@ -77,6 +78,7 @@ static void test_cache_lru_mru(void)
 
 static void test_cache_full_no_collisions(void)
 {
+    bool put;
     struct lru_cache c;
 
     size_t hashmap_bytes, cache_bytes;
@@ -89,41 +91,41 @@ static void test_cache_full_no_collisions(void)
 
     assert(lru_cache_init_memory(&c, hashmap, cache, hash_to_self, my_compare, NULL) == 0);
 
-    assert(lru_cache_get_or_put(&c, "a", NULL) == 0);
-    assert(lru_cache_get_or_put(&c, "b", NULL) == 0);
-    assert(lru_cache_get_or_put(&c, "c", NULL) == 0);
-    assert(lru_cache_get_or_put(&c, "d", NULL) == 0);
-    assert(lru_cache_get_or_put(&c, "e", NULL) == 0);
-    assert(lru_cache_get_or_put(&c, "f", NULL) == 0);
-    assert(lru_cache_get_or_put(&c, "g", NULL) == 0);
-    assert(lru_cache_get_or_put(&c, "h", NULL) == 0);
-    assert(lru_cache_get_or_put(&c, "i", NULL) == 0);
-    assert(lru_cache_get_or_put(&c, "j", NULL) == 0);
-    assert(lru_cache_get_or_put(&c, "k", NULL) == 0);
-    assert(lru_cache_get_or_put(&c, "l", NULL) == 0);
-    assert(lru_cache_get_or_put(&c, "m", NULL) == 0);
-    assert(lru_cache_get_or_put(&c, "n", NULL) == 0);
-    assert(lru_cache_get_or_put(&c, "o", NULL) == 0);
-    assert(lru_cache_get_or_put(&c, "p", NULL) == 0);
+    assert(lru_cache_get_or_put(&c, "a", &put) != LRU_CACHE_ENTRY_NIL && put);
+    assert(lru_cache_get_or_put(&c, "b", &put) != LRU_CACHE_ENTRY_NIL && put);
+    assert(lru_cache_get_or_put(&c, "c", &put) != LRU_CACHE_ENTRY_NIL && put);
+    assert(lru_cache_get_or_put(&c, "d", &put) != LRU_CACHE_ENTRY_NIL && put);
+    assert(lru_cache_get_or_put(&c, "e", &put) != LRU_CACHE_ENTRY_NIL && put);
+    assert(lru_cache_get_or_put(&c, "f", &put) != LRU_CACHE_ENTRY_NIL && put);
+    assert(lru_cache_get_or_put(&c, "g", &put) != LRU_CACHE_ENTRY_NIL && put);
+    assert(lru_cache_get_or_put(&c, "h", &put) != LRU_CACHE_ENTRY_NIL && put);
+    assert(lru_cache_get_or_put(&c, "i", &put) != LRU_CACHE_ENTRY_NIL && put);
+    assert(lru_cache_get_or_put(&c, "j", &put) != LRU_CACHE_ENTRY_NIL && put);
+    assert(lru_cache_get_or_put(&c, "k", &put) != LRU_CACHE_ENTRY_NIL && put);
+    assert(lru_cache_get_or_put(&c, "l", &put) != LRU_CACHE_ENTRY_NIL && put);
+    assert(lru_cache_get_or_put(&c, "m", &put) != LRU_CACHE_ENTRY_NIL && put);
+    assert(lru_cache_get_or_put(&c, "n", &put) != LRU_CACHE_ENTRY_NIL && put);
+    assert(lru_cache_get_or_put(&c, "o", &put) != LRU_CACHE_ENTRY_NIL && put);
+    assert(lru_cache_get_or_put(&c, "p", &put) != LRU_CACHE_ENTRY_NIL && put);
 
     // lru_cache_print(&c, stdout);
 
-    assert(lru_cache_get_or_put(&c, "a", NULL) == 1);
-    assert(lru_cache_get_or_put(&c, "b", NULL) == 1);
-    assert(lru_cache_get_or_put(&c, "c", NULL) == 1);
-    assert(lru_cache_get_or_put(&c, "d", NULL) == 1);
-    assert(lru_cache_get_or_put(&c, "e", NULL) == 1);
-    assert(lru_cache_get_or_put(&c, "f", NULL) == 1);
-    assert(lru_cache_get_or_put(&c, "g", NULL) == 1);
-    assert(lru_cache_get_or_put(&c, "h", NULL) == 1);
-    assert(lru_cache_get_or_put(&c, "i", NULL) == 1);
-    assert(lru_cache_get_or_put(&c, "j", NULL) == 1);
-    assert(lru_cache_get_or_put(&c, "k", NULL) == 1);
-    assert(lru_cache_get_or_put(&c, "l", NULL) == 1);
-    assert(lru_cache_get_or_put(&c, "m", NULL) == 1);
-    assert(lru_cache_get_or_put(&c, "n", NULL) == 1);
-    assert(lru_cache_get_or_put(&c, "o", NULL) == 1);
-    assert(lru_cache_get_or_put(&c, "p", NULL) == 1);
+    assert(lru_cache_get_or_put(&c, "a", NULL) != LRU_CACHE_ENTRY_NIL);
+    assert(lru_cache_get_or_put(&c, "b", NULL) != LRU_CACHE_ENTRY_NIL);
+    assert(lru_cache_get_or_put(&c, "c", NULL) != LRU_CACHE_ENTRY_NIL);
+    assert(lru_cache_get_or_put(&c, "d", NULL) != LRU_CACHE_ENTRY_NIL);
+    assert(lru_cache_get_or_put(&c, "e", NULL) != LRU_CACHE_ENTRY_NIL);
+    assert(lru_cache_get_or_put(&c, "f", NULL) != LRU_CACHE_ENTRY_NIL);
+    assert(lru_cache_get_or_put(&c, "g", NULL) != LRU_CACHE_ENTRY_NIL);
+    assert(lru_cache_get_or_put(&c, "h", NULL) != LRU_CACHE_ENTRY_NIL);
+    assert(lru_cache_get_or_put(&c, "i", NULL) != LRU_CACHE_ENTRY_NIL);
+    assert(lru_cache_get_or_put(&c, "j", NULL) != LRU_CACHE_ENTRY_NIL);
+    assert(lru_cache_get_or_put(&c, "k", NULL) != LRU_CACHE_ENTRY_NIL);
+    assert(lru_cache_get_or_put(&c, "l", NULL) != LRU_CACHE_ENTRY_NIL);
+    assert(lru_cache_get_or_put(&c, "m", NULL) != LRU_CACHE_ENTRY_NIL);
+    assert(lru_cache_get_or_put(&c, "n", NULL) != LRU_CACHE_ENTRY_NIL);
+    assert(lru_cache_get_or_put(&c, "o", NULL) != LRU_CACHE_ENTRY_NIL);
+    assert(lru_cache_get_or_put(&c, "p", NULL) != LRU_CACHE_ENTRY_NIL);
 
     free(hashmap);
     free(cache);
@@ -146,6 +148,7 @@ static void test_cache_invalid_size_nmemb(void)
 
 static void test_cache_single_entry(void)
 {
+    bool put;
     struct lru_cache c;
 
     size_t hashmap_bytes, cache_bytes;
@@ -158,19 +161,19 @@ static void test_cache_single_entry(void)
 
     assert(lru_cache_init_memory(&c, hashmap, cache, hash_to_self, my_compare, NULL) == 0);
 
-    assert(lru_cache_get_or_put(&c, "a", NULL) == 0);
-    assert(lru_cache_get_or_put(&c, "a", NULL) == 1);
-    assert(lru_cache_get_or_put(&c, "a", NULL) == 1);
+    assert(lru_cache_get_or_put(&c, "a", &put) != LRU_CACHE_ENTRY_NIL && put);
+    assert(lru_cache_get_or_put(&c, "a", NULL) != LRU_CACHE_ENTRY_NIL);
+    assert(lru_cache_get_or_put(&c, "a", NULL) != LRU_CACHE_ENTRY_NIL);
 
-    assert(lru_cache_get_or_put(&c, "b", NULL) == 0);
-    assert(lru_cache_get_or_put(&c, "a", NULL) == 0);
-    assert(lru_cache_get_or_put(&c, "b", NULL) == 0);
+    assert(lru_cache_get_or_put(&c, "b", &put) != LRU_CACHE_ENTRY_NIL && put);
+    assert(lru_cache_get_or_put(&c, "a", &put) != LRU_CACHE_ENTRY_NIL && put);
+    assert(lru_cache_get_or_put(&c, "b", &put) != LRU_CACHE_ENTRY_NIL && put);
 
-    assert(lru_cache_get_or_put(&c, "b", NULL) == 1);
-    assert(lru_cache_get_or_put(&c, "b", NULL) == 1);
+    assert(lru_cache_get_or_put(&c, "b", NULL) != LRU_CACHE_ENTRY_NIL);
+    assert(lru_cache_get_or_put(&c, "b", NULL) != LRU_CACHE_ENTRY_NIL);
 
-    assert(lru_cache_get_or_put(&c, "a", NULL) == 0);
-    assert(lru_cache_get_or_put(&c, "a", NULL) == 1);
+    assert(lru_cache_get_or_put(&c, "a", &put) != LRU_CACHE_ENTRY_NIL && put);
+    assert(lru_cache_get_or_put(&c, "a", NULL) != LRU_CACHE_ENTRY_NIL);
 
     free(hashmap);
     free(cache);
@@ -178,6 +181,7 @@ static void test_cache_single_entry(void)
 
 static void test_cache_random_access(void)
 {
+    bool put;
     struct lru_cache c;
 
     size_t hashmap_bytes, cache_bytes;
@@ -190,45 +194,45 @@ static void test_cache_random_access(void)
 
     assert(lru_cache_init_memory(&c, hashmap, cache, hash_to_self, my_compare, NULL) == 0);
 
-    assert(lru_cache_get_or_put(&c, "a", NULL) == 0);
-    assert(lru_cache_get_or_put(&c, "b", NULL) == 0);
-    assert(lru_cache_get_or_put(&c, "c", NULL) == 0);
-    assert(lru_cache_get_or_put(&c, "d", NULL) == 0);
-    assert(lru_cache_get_or_put(&c, "e", NULL) == 0);
-    assert(lru_cache_get_or_put(&c, "f", NULL) == 0);
-    assert(lru_cache_get_or_put(&c, "g", NULL) == 0);
-    assert(lru_cache_get_or_put(&c, "e", NULL) == 1);
-    assert(lru_cache_get_or_put(&c, "h", NULL) == 0);
-    assert(lru_cache_get_or_put(&c, "d", NULL) == 1);
-    assert(lru_cache_get_or_put(&c, "i", NULL) == 0);
-    assert(lru_cache_get_or_put(&c, "g", NULL) == 1);
-    assert(lru_cache_get_or_put(&c, "j", NULL) == 0);
-    assert(lru_cache_get_or_put(&c, "g", NULL) == 1);
-    assert(lru_cache_get_or_put(&c, "k", NULL) == 0);
-    assert(lru_cache_get_or_put(&c, "k", NULL) == 1);
-    assert(lru_cache_get_or_put(&c, "l", NULL) == 0);
-    assert(lru_cache_get_or_put(&c, "m", NULL) == 0);
-    assert(lru_cache_get_or_put(&c, "l", NULL) == 1);
-    assert(lru_cache_get_or_put(&c, "n", NULL) == 0);
-    assert(lru_cache_get_or_put(&c, "o", NULL) == 0);
-    assert(lru_cache_get_or_put(&c, "p", NULL) == 0);
+    assert(lru_cache_get_or_put(&c, "a", &put) != LRU_CACHE_ENTRY_NIL && put);
+    assert(lru_cache_get_or_put(&c, "b", &put) != LRU_CACHE_ENTRY_NIL && put);
+    assert(lru_cache_get_or_put(&c, "c", &put) != LRU_CACHE_ENTRY_NIL && put);
+    assert(lru_cache_get_or_put(&c, "d", &put) != LRU_CACHE_ENTRY_NIL && put);
+    assert(lru_cache_get_or_put(&c, "e", &put) != LRU_CACHE_ENTRY_NIL && put);
+    assert(lru_cache_get_or_put(&c, "f", &put) != LRU_CACHE_ENTRY_NIL && put);
+    assert(lru_cache_get_or_put(&c, "g", &put) != LRU_CACHE_ENTRY_NIL && put);
+    assert(lru_cache_get_or_put(&c, "e", &put) != LRU_CACHE_ENTRY_NIL);
+    assert(lru_cache_get_or_put(&c, "h", &put) != LRU_CACHE_ENTRY_NIL && put);
+    assert(lru_cache_get_or_put(&c, "d", &put) != LRU_CACHE_ENTRY_NIL);
+    assert(lru_cache_get_or_put(&c, "i", &put) != LRU_CACHE_ENTRY_NIL && put);
+    assert(lru_cache_get_or_put(&c, "g", &put) != LRU_CACHE_ENTRY_NIL);
+    assert(lru_cache_get_or_put(&c, "j", &put) != LRU_CACHE_ENTRY_NIL && put);
+    assert(lru_cache_get_or_put(&c, "g", &put) != LRU_CACHE_ENTRY_NIL);
+    assert(lru_cache_get_or_put(&c, "k", &put) != LRU_CACHE_ENTRY_NIL && put);
+    assert(lru_cache_get_or_put(&c, "k", &put) != LRU_CACHE_ENTRY_NIL);
+    assert(lru_cache_get_or_put(&c, "l", &put) != LRU_CACHE_ENTRY_NIL && put);
+    assert(lru_cache_get_or_put(&c, "m", &put) != LRU_CACHE_ENTRY_NIL && put);
+    assert(lru_cache_get_or_put(&c, "l", &put) != LRU_CACHE_ENTRY_NIL);
+    assert(lru_cache_get_or_put(&c, "n", &put) != LRU_CACHE_ENTRY_NIL && put);
+    assert(lru_cache_get_or_put(&c, "o", &put) != LRU_CACHE_ENTRY_NIL && put);
+    assert(lru_cache_get_or_put(&c, "p", &put) != LRU_CACHE_ENTRY_NIL && put);
 
-    assert(lru_cache_get_or_put(&c, "a", NULL) == 1);
-    assert(lru_cache_get_or_put(&c, "b", NULL) == 1);
-    assert(lru_cache_get_or_put(&c, "c", NULL) == 1);
-    assert(lru_cache_get_or_put(&c, "d", NULL) == 1);
-    assert(lru_cache_get_or_put(&c, "e", NULL) == 1);
-    assert(lru_cache_get_or_put(&c, "f", NULL) == 1);
-    assert(lru_cache_get_or_put(&c, "g", NULL) == 1);
-    assert(lru_cache_get_or_put(&c, "h", NULL) == 1);
-    assert(lru_cache_get_or_put(&c, "i", NULL) == 1);
-    assert(lru_cache_get_or_put(&c, "j", NULL) == 1);
-    assert(lru_cache_get_or_put(&c, "k", NULL) == 1);
-    assert(lru_cache_get_or_put(&c, "l", NULL) == 1);
-    assert(lru_cache_get_or_put(&c, "m", NULL) == 1);
-    assert(lru_cache_get_or_put(&c, "n", NULL) == 1);
-    assert(lru_cache_get_or_put(&c, "o", NULL) == 1);
-    assert(lru_cache_get_or_put(&c, "p", NULL) == 1);
+    assert(lru_cache_get_or_put(&c, "a", NULL) != LRU_CACHE_ENTRY_NIL);
+    assert(lru_cache_get_or_put(&c, "b", NULL) != LRU_CACHE_ENTRY_NIL);
+    assert(lru_cache_get_or_put(&c, "c", NULL) != LRU_CACHE_ENTRY_NIL);
+    assert(lru_cache_get_or_put(&c, "d", NULL) != LRU_CACHE_ENTRY_NIL);
+    assert(lru_cache_get_or_put(&c, "e", NULL) != LRU_CACHE_ENTRY_NIL);
+    assert(lru_cache_get_or_put(&c, "f", NULL) != LRU_CACHE_ENTRY_NIL);
+    assert(lru_cache_get_or_put(&c, "g", NULL) != LRU_CACHE_ENTRY_NIL);
+    assert(lru_cache_get_or_put(&c, "h", NULL) != LRU_CACHE_ENTRY_NIL);
+    assert(lru_cache_get_or_put(&c, "i", NULL) != LRU_CACHE_ENTRY_NIL);
+    assert(lru_cache_get_or_put(&c, "j", NULL) != LRU_CACHE_ENTRY_NIL);
+    assert(lru_cache_get_or_put(&c, "k", NULL) != LRU_CACHE_ENTRY_NIL);
+    assert(lru_cache_get_or_put(&c, "l", NULL) != LRU_CACHE_ENTRY_NIL);
+    assert(lru_cache_get_or_put(&c, "m", NULL) != LRU_CACHE_ENTRY_NIL);
+    assert(lru_cache_get_or_put(&c, "n", NULL) != LRU_CACHE_ENTRY_NIL);
+    assert(lru_cache_get_or_put(&c, "o", NULL) != LRU_CACHE_ENTRY_NIL);
+    assert(lru_cache_get_or_put(&c, "p", NULL) != LRU_CACHE_ENTRY_NIL);
 
     free(hashmap);
     free(cache);
