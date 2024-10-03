@@ -138,49 +138,8 @@ struct lru_cache_entry *lru_cache_get_entry(struct lru_cache *s, uint32_t i)
     return (i != LRU_CACHE_ENTRY_NIL) ? (struct lru_cache_entry *)(cache + offset) : NULL;
 }
 
-// @todo: Atomic access
-uint32_t lru_cache_get_or_put(struct lru_cache *s, const void *key, bool *put)
+static uint32_t lru_cache_update_entry(struct lru_cache *s, uint32_t i, struct lru_cache_entry *e, uint32_t old_hash, uint32_t new_hash)
 {
-    uint32_t hash = s->hash(key);
-    uint32_t old_hash = hash;
-
-    uint32_t i = s->hashmap[hash % s->nmemb];
-
-    struct lru_cache_entry *e = NULL;
-
-    while (i != LRU_CACHE_ENTRY_NIL) {
-        e = lru_cache_get_entry(s, i);
-
-        if (s->compare(e->key, key) == 0) {
-            if (put) {
-                *put = false;
-            }
-
-            goto access_and_rearrange;
-        }
-
-        i = e->clru;
-    }
-
-    if (!put) {
-        return LRU_CACHE_ENTRY_NIL;
-    }
-
-    // remove from collision chain
-    *put = true;
-
-    i = s->lru;
-    e = lru_cache_get_entry(s, i);
-
-    old_hash = s->hash(e->key);
-
-    if (e->clru != i && s->destroy) {
-        s->destroy(e->key, i);
-    }
-
-    memcpy(e->key, key, s->size);
-
-access_and_rearrange:
     // Make current entry most recently used in the global chain if not already
     if (s->mru != i) {
         if (e->lru != LRU_CACHE_ENTRY_NIL) {
@@ -202,7 +161,7 @@ access_and_rearrange:
     }
 
     // Make current entry most recently used in the local chain if not already
-    if (s->hashmap[hash % s->nmemb] != i) {
+    if (s->hashmap[new_hash % s->nmemb] != i) {
         if (e->clru != LRU_CACHE_ENTRY_NIL) {
             lru_cache_get_entry(s, e->clru)->cmru = e->cmru;
         }
@@ -213,14 +172,14 @@ access_and_rearrange:
             s->hashmap[old_hash % s->nmemb] = e->clru;
         }
 
-        e->clru = s->hashmap[hash % s->nmemb];
+        e->clru = s->hashmap[new_hash % s->nmemb];
         e->cmru = LRU_CACHE_ENTRY_NIL;
 
         if (e->clru != LRU_CACHE_ENTRY_NIL) {
             lru_cache_get_entry(s, e->clru)->cmru = i;
         }
 
-        s->hashmap[hash % s->nmemb] = i;
+        s->hashmap[new_hash % s->nmemb] = i;
     }
 
     assert((e->clru == LRU_CACHE_ENTRY_NIL) || (lru_cache_get_entry(s, e->clru)->cmru == i));
@@ -233,6 +192,45 @@ access_and_rearrange:
     assert(s->mru == i);
 
     return i;
+}
+
+// @todo: Atomic access
+uint32_t lru_cache_get_or_put(struct lru_cache *s, const void *key, bool *put)
+{
+    uint32_t new_hash = s->hash(key);
+    uint32_t old_hash = new_hash;
+    uint32_t i = s->hashmap[new_hash % s->nmemb];
+    struct lru_cache_entry *e = NULL;
+
+    while (i != LRU_CACHE_ENTRY_NIL) {
+        e = lru_cache_get_entry(s, i);
+
+        if (s->compare(e->key, key) == 0) {
+            if (put) {
+                *put = false;
+            }
+
+            return lru_cache_update_entry(s, i, e, old_hash, new_hash);
+        }
+
+        i = e->clru;
+    }
+
+    if (!put) {
+        return LRU_CACHE_ENTRY_NIL;
+    }
+
+    *put = true;
+    i = s->lru;
+    e = lru_cache_get_entry(s, i);
+    old_hash = s->hash(e->key);
+
+    if (e->clru != i && s->destroy) {
+        s->destroy(e->key, i);
+    }
+
+    memcpy(e->key, key, s->size);
+    return lru_cache_update_entry(s, i, e, old_hash, new_hash);
 }
 
 void lru_cache_flush(struct lru_cache *s)
