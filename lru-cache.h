@@ -62,75 +62,70 @@ typedef uint32_t (*lru_cache_hash_t)(const void *a);
  * ordering, and references to the hashmap and cache memory.
  */
 struct lru_cache {
-    uint32_t size; ///< Size of each cache entry.
-    uint32_t nmemb; ///< Number of cache entries.
-
-    uint32_t lru; ///< Pointer to the least recently used entry.
-    uint32_t mru; ///< Pointer to the most recently used entry.
-
     uint32_t *hashmap; ///< Hashmap for quick access to cache entries.
     void *cache; ///< Pointer to the cache memory.
 
     lru_cache_hash_t hash; ///< Hash function for the cache keys.
     lru_cache_compare_t compare; ///< Comparison function for cache keys.
     lru_cache_destroy_t destroy; ///< Function to destroy cache entries.
+
+    uint32_t size; ///< Size of each cache entry.
+    uint32_t nmemb; ///< Number of cache entries.
+
+    uint32_t lru; ///< Pointer to the least recently used entry.
+    uint32_t mru; ///< Pointer to the most recently used entry.
 };
 
+int lru_cache_init(struct lru_cache *s,
+                   uint32_t size,
+                   uint32_t align,
+                   lru_cache_hash_t hash,
+                   lru_cache_compare_t compare,
+                   lru_cache_destroy_t destroy);
+
 /**
- * @brief Initializes the size and nmemb fields of the cache.
+ * @brief Sets the number of cache entries and calculates required memory sizes.
  *
- * This function calculates the amount of memory required for the hashmap
- * and the cache itself based on the provided sizes, ensuring that the
- * parameters are valid.
+ * This function configures the number of entries (`nmemb`) the cache will handle. It also calculates
+ * the required memory sizes for both the hashmap and the cache. Memory for these must be allocated
+ * separately and provided through `lru_cache_set_memory()`.
  *
- * If any of the parameters are invalid, this function will not modify
- * the state of the cache object.
+ * If any parameter is invalid, such as `nmemb` being zero, this function returns an error without
+ * modifying the cache object.
  *
- * @param s Pointer to the lru_cache object to be modified.
- * @param size Size of each cache entry. Must be greater than 0.
+ * @param s Pointer to the `lru_cache` structure to be modified.
  * @param nmemb Number of cache entries. Must be greater than 0.
- * @param align Address alignment (1, 2, 4, 8, or 16) of each cache entry.
- * @param hashmap_bytes Pointer to store the number of bytes required for hashmap memory.
- * @param cache_bytes Pointer to store the number of bytes required for LRU cache.
+ * @param hashmap_bytes Pointer to store the required bytes for the hashmap memory.
+ * @param cache_bytes Pointer to store the required bytes for the cache memory.
  * @return 0 on success, or a positive error number:
- *         - EINVAL: Invalid input parameters (size, nmemb, or align).
- *         - EOVERFLOW: Potential overflow detected when calculating memory requirements.
+ *         - EINVAL: Invalid `nmemb` value.
+ *         - EOVERFLOW: Overflow detected while calculating memory requirements.
  */
-int lru_cache_init_size(struct lru_cache *s,
-                        uint32_t size,
+int lru_cache_set_nmemb(struct lru_cache *s,
                         uint32_t nmemb,
-                        uint32_t align,
                         size_t *hashmap_bytes,
                         size_t *cache_bytes);
 
 /**
- * @brief Initializes the memory for the LRU cache.
+ * @brief Initializes the memory for the cache using external allocation.
  *
- * Links the provided hashmap and cache memory to the lru_cache structure,
- * and sets the hash, compare, and destroy functions. The cache starts in
- * an empty state, ready for use.
+ * This function links the externally allocated memory for both the hashmap and cache storage
+ * to the LRU cache structure. It ensures that the cache is set up correctly by associating
+ * the hash, comparison, and destroy functions for key management. The cache starts in an empty state,
+ * ready to be populated.
  *
- * If any of the parameters are invalid, this function will not modify
- * the state of the cache object.
+ * The memory size for the hashmap and cache must match the sizes computed by `lru_cache_set_nmemb()`.
+ * If any parameter is invalid, the function returns an error and does not modify the cache.
  *
- * @param s Pointer to the lru_cache object to be modified.
- * @param hashmap Pointer to the allocated memory for the hashmap
- *                (at least hashmap_bytes bytes).
- * @param cache Pointer to the allocated memory for the cache
- *              (at least cache_bytes bytes).
- * @param hash Hash function to be used for the cache; determines how keys are distributed.
- * @param compare Comparison function to compare keys; used to check for key equality.
- * @param destroy Function to destroy entries when evicted from the cache; can be NULL.
+ * @param s Pointer to the `lru_cache` structure to be modified.
+ * @param hashmap Pointer to the allocated hashmap memory.
+ * @param cache Pointer to the allocated cache memory.
  * @return 0 on success, or a positive error number:
- *         - EINVAL: Invalid comparison or hash functions.
- *         - EOVERFLOW: Memory overflow detected when initializing.
+ *         - EINVAL: Invalid pointers or unaligned memory.
  */
-int lru_cache_init_memory(struct lru_cache *s,
-                          void *hashmap,
-                          void *cache,
-                          lru_cache_hash_t hash,
-                          lru_cache_compare_t compare,
-                          lru_cache_destroy_t destroy);
+int lru_cache_set_memory(struct lru_cache *s,
+                         void *hashmap,
+                         void *cache);
 
 /**
  * @brief Retrieves a pointer to a cache entry at a given index.
