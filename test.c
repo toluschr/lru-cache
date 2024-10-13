@@ -231,6 +231,58 @@ static void test_cache_random_access(void)
     free(cache);
 }
 
+static void test_cache_grow_full(void)
+{
+    bool put;
+    struct lru_cache c;
+    size_t hashmap_bytes, cache_bytes;
+    void *hashmap, *cache;
+
+    assert(lru_cache_init(&c, sizeof(char), 1, hash_to_self, my_compare, NULL) == 0);
+
+    assert(lru_cache_set_nmemb(&c, 4, &hashmap_bytes, &cache_bytes) == 0);
+
+    hashmap = malloc(hashmap_bytes);
+    cache = malloc(cache_bytes);
+
+    assert(lru_cache_set_memory(&c, hashmap, cache) == 0);
+
+    assert(lru_cache_get_or_put(&c, "a", &put) != LRU_CACHE_ENTRY_NIL && put);
+    assert(lru_cache_get_or_put(&c, "b", &put) != LRU_CACHE_ENTRY_NIL && put);
+    assert(lru_cache_get_or_put(&c, "c", &put) != LRU_CACHE_ENTRY_NIL && put);
+    assert(lru_cache_get_or_put(&c, "d", &put) != LRU_CACHE_ENTRY_NIL && put);
+
+    assert(lru_cache_get_or_put(&c, "a", NULL) != LRU_CACHE_ENTRY_NIL);
+    assert(lru_cache_get_or_put(&c, "b", NULL) != LRU_CACHE_ENTRY_NIL);
+    assert(lru_cache_get_or_put(&c, "c", NULL) != LRU_CACHE_ENTRY_NIL);
+    assert(lru_cache_get_or_put(&c, "d", NULL) != LRU_CACHE_ENTRY_NIL);
+
+    assert(lru_cache_set_nmemb(&c, 8, &hashmap_bytes, &cache_bytes) == 0);
+
+    hashmap = realloc(hashmap, hashmap_bytes);
+    cache = realloc(cache, cache_bytes);
+
+    assert(lru_cache_set_memory(&c, hashmap, cache) == 0);
+
+    assert(lru_cache_get_or_put(&c, "e", &put) != LRU_CACHE_ENTRY_NIL && put);
+    assert(lru_cache_get_or_put(&c, "f", &put) != LRU_CACHE_ENTRY_NIL && put);
+    assert(lru_cache_get_or_put(&c, "g", &put) != LRU_CACHE_ENTRY_NIL && put);
+    assert(lru_cache_get_or_put(&c, "h", &put) != LRU_CACHE_ENTRY_NIL && put);
+
+    assert(lru_cache_get_or_put(&c, "a", NULL) != LRU_CACHE_ENTRY_NIL);
+    assert(lru_cache_get_or_put(&c, "b", NULL) != LRU_CACHE_ENTRY_NIL);
+    assert(lru_cache_get_or_put(&c, "c", NULL) != LRU_CACHE_ENTRY_NIL);
+    assert(lru_cache_get_or_put(&c, "d", NULL) != LRU_CACHE_ENTRY_NIL);
+
+    assert(lru_cache_get_or_put(&c, "e", NULL) != LRU_CACHE_ENTRY_NIL);
+    assert(lru_cache_get_or_put(&c, "f", NULL) != LRU_CACHE_ENTRY_NIL);
+    assert(lru_cache_get_or_put(&c, "g", NULL) != LRU_CACHE_ENTRY_NIL);
+    assert(lru_cache_get_or_put(&c, "h", NULL) != LRU_CACHE_ENTRY_NIL);
+
+    free(hashmap);
+    free(cache);
+}
+
 static void test_cache_flush_full_with_collisions(void)
 {
     bool put;
@@ -281,5 +333,6 @@ int main()
     TEST(test_cache_full_no_collisions);
     TEST(test_cache_single_entry);
     TEST(test_cache_random_access);
+    TEST(test_cache_grow_full);
     TEST(test_cache_flush_full_with_collisions);
 }
