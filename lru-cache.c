@@ -241,10 +241,12 @@ int lru_cache_set_nmemb(
             e = lru_cache_get_entry(s, i);
             h = s->hash(e->key);
 
-            if (s->destroy) {
+            if (e->clru != i && s->destroy) {
                 s->destroy(e->key, i);
             }
 
+            // Do not update pointers here, the entry is guaranteed never
+            // to be used again.
             lru_cache_pop(s, e);
             lru_cache_rehash(s, i, e, h % s->old_nmemb, LRU_CACHE_ENTRY_NIL);
         }
