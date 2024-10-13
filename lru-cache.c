@@ -30,6 +30,7 @@ static void lru_cache_rehash(
     uint32_t new_hash)
 {
     uint32_t *index;
+
     if (new_hash == LRU_CACHE_ENTRY_NIL) {
         index = &i;
     } else if (s->hashmap[new_hash] != i) {
@@ -50,13 +51,19 @@ static void lru_cache_rehash(
         s->hashmap[old_hash] = e->clru;
     }
 
+    // If removal requested, "*index == i" => no longer in any chain.
     e->clru = *index;
 
+    // If relocation requested, "s->hashmap[new_hash]->cmru = i" => first element in new chain.
     if (e->clru != LRU_CACHE_ENTRY_NIL) {
         lru_cache_get_entry(s, e->clru)->cmru = i;
     }
 
+    // Element is the most used in both cases
     e->cmru = LRU_CACHE_ENTRY_NIL;
+
+    // If relocation requested: "s->hashmap[new_hash] = i" => first element in new chain.
+    // If removal requested: "i = i" => NOP
     *index = i;
 }
 
