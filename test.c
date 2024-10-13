@@ -12,17 +12,26 @@
         fprintf(stderr, "\r\033[A%s \033[32;1mOK\033[0m\n", #NAME); \
     }
 
-uint32_t hash_to_zero(const void *a_)
+static const char *eviction = "";
+
+static void destroy(void *key, uint32_t idx)
+{
+    (void)idx;
+
+    assert(*(char *)key == *eviction++);
+}
+
+static uint32_t hash_to_zero(const void *a_)
 {
     return (void)a_, 0u;
 }
 
-uint32_t hash_to_self(const void *a_)
+static uint32_t hash_to_self(const void *a_)
 {
     return *(char *)a_ - 'a';
 }
 
-int my_compare(const void *a_, const void *b_)
+static int my_compare(const void *a_, const void *b_)
 {
     const char *a = a_;
     const char *b = b_;
@@ -37,8 +46,9 @@ static void test_cache_collision_first_in_local_chain(void)
     size_t hashmap_bytes, cache_bytes;
     void *hashmap, *cache;
 
-    assert(lru_cache_init(&c, sizeof(char), 1, hash_to_zero, my_compare, NULL) == 0);
+    assert(lru_cache_init(&c, sizeof(char), 1, hash_to_zero, my_compare, destroy) == 0);
 
+    eviction = "";
     assert(lru_cache_set_nmemb(&c, 2, &hashmap_bytes, &cache_bytes) == 0);
 
     hashmap = malloc(hashmap_bytes);
@@ -54,7 +64,10 @@ static void test_cache_collision_first_in_local_chain(void)
     assert(lru_cache_get_or_put(&c, "a", NULL) != LRU_CACHE_ENTRY_NIL);
     assert(lru_cache_get_or_put(&c, "b", NULL) != LRU_CACHE_ENTRY_NIL);
 
+    eviction = "a";
     assert(lru_cache_get_or_put(&c, "c", &put) != LRU_CACHE_ENTRY_NIL && put);
+    assert(*eviction == 0);
+
     assert(lru_cache_get_or_put(&c, "c", NULL) != LRU_CACHE_ENTRY_NIL);
 
     free(hashmap);
@@ -65,12 +78,12 @@ static void test_cache_full_no_collisions(void)
 {
     bool put;
     struct lru_cache c;
-
     size_t hashmap_bytes, cache_bytes;
     void *hashmap, *cache;
 
-    assert(lru_cache_init(&c, sizeof(char), 1, hash_to_self, my_compare, NULL) == 0);
+    assert(lru_cache_init(&c, sizeof(char), 1, hash_to_self, my_compare, destroy) == 0);
 
+    eviction = "";
     assert(lru_cache_set_nmemb(&c, 16, &hashmap_bytes, &cache_bytes) == 0);
 
     hashmap = malloc(hashmap_bytes);
@@ -94,8 +107,6 @@ static void test_cache_full_no_collisions(void)
     assert(lru_cache_get_or_put(&c, "n", &put) != LRU_CACHE_ENTRY_NIL && put);
     assert(lru_cache_get_or_put(&c, "o", &put) != LRU_CACHE_ENTRY_NIL && put);
     assert(lru_cache_get_or_put(&c, "p", &put) != LRU_CACHE_ENTRY_NIL && put);
-
-    // lru_cache_print(&c, stdout);
 
     assert(lru_cache_get_or_put(&c, "a", NULL) != LRU_CACHE_ENTRY_NIL);
     assert(lru_cache_get_or_put(&c, "b", NULL) != LRU_CACHE_ENTRY_NIL);
@@ -140,12 +151,12 @@ static void test_cache_single_entry(void)
 {
     bool put;
     struct lru_cache c;
-
     size_t hashmap_bytes, cache_bytes;
     void *hashmap, *cache;
 
-    assert(lru_cache_init(&c, sizeof(char), 1, hash_to_self, my_compare, NULL) == 0);
+    assert(lru_cache_init(&c, sizeof(char), 1, hash_to_self, my_compare, destroy) == 0);
 
+    eviction = "";
     assert(lru_cache_set_nmemb(&c, 1, &hashmap_bytes, &cache_bytes) == 0);
 
     hashmap = malloc(hashmap_bytes);
@@ -157,14 +168,27 @@ static void test_cache_single_entry(void)
     assert(lru_cache_get_or_put(&c, "a", NULL) != LRU_CACHE_ENTRY_NIL);
     assert(lru_cache_get_or_put(&c, "a", NULL) != LRU_CACHE_ENTRY_NIL);
 
+    eviction = "a";
     assert(lru_cache_get_or_put(&c, "b", &put) != LRU_CACHE_ENTRY_NIL && put);
-    assert(lru_cache_get_or_put(&c, "a", &put) != LRU_CACHE_ENTRY_NIL && put);
-    assert(lru_cache_get_or_put(&c, "b", &put) != LRU_CACHE_ENTRY_NIL && put);
+    assert(*eviction == 0);
 
+    eviction = "b";
+    assert(lru_cache_get_or_put(&c, "a", &put) != LRU_CACHE_ENTRY_NIL && put);
+    assert(*eviction == 0);
+
+    eviction = "a";
+    assert(lru_cache_get_or_put(&c, "b", &put) != LRU_CACHE_ENTRY_NIL && put);
+    assert(*eviction == 0);
+
+    eviction = "";
     assert(lru_cache_get_or_put(&c, "b", NULL) != LRU_CACHE_ENTRY_NIL);
     assert(lru_cache_get_or_put(&c, "b", NULL) != LRU_CACHE_ENTRY_NIL);
 
+    eviction = "b";
     assert(lru_cache_get_or_put(&c, "a", &put) != LRU_CACHE_ENTRY_NIL && put);
+    assert(*eviction == 0);
+
+    eviction = "";
     assert(lru_cache_get_or_put(&c, "a", NULL) != LRU_CACHE_ENTRY_NIL);
 
     free(hashmap);
@@ -175,11 +199,12 @@ static void test_cache_random_access(void)
 {
     bool put;
     struct lru_cache c;
-
     size_t hashmap_bytes, cache_bytes;
     void *hashmap, *cache;
 
-    assert(lru_cache_init(&c, sizeof(char), 1, hash_to_self, my_compare, NULL) == 0);
+    assert(lru_cache_init(&c, sizeof(char), 1, hash_to_self, my_compare, destroy) == 0);
+
+    eviction = "";
     assert(lru_cache_set_nmemb(&c, 16, &hashmap_bytes, &cache_bytes) == 0);
 
     hashmap = malloc(hashmap_bytes);
@@ -238,8 +263,9 @@ static void test_cache_shrink(void)
     size_t hashmap_bytes, cache_bytes;
     void *hashmap, *cache;
 
-    assert(lru_cache_init(&c, sizeof(char), 1, hash_to_self, my_compare, NULL) == 0);
+    assert(lru_cache_init(&c, sizeof(char), 1, hash_to_self, my_compare, destroy) == 0);
 
+    eviction = "";
     assert(lru_cache_set_nmemb(&c, 8, &hashmap_bytes, &cache_bytes) == 0);
 
     hashmap = malloc(hashmap_bytes);
@@ -257,27 +283,33 @@ static void test_cache_shrink(void)
     assert(lru_cache_get_or_put(&c, "g", &put) != LRU_CACHE_ENTRY_NIL && put);
     assert(lru_cache_get_or_put(&c, "h", &put) != LRU_CACHE_ENTRY_NIL && put);
 
+    eviction = "efgh";
     assert(lru_cache_set_nmemb(&c, 4, &hashmap_bytes, &cache_bytes) == 0);
+    assert(*eviction == 0);
 
     hashmap = realloc(hashmap, hashmap_bytes);
     cache = realloc(cache, cache_bytes);
 
+    eviction = "";
     assert(lru_cache_set_memory(&c, hashmap, cache) == 0);
-
     assert(lru_cache_get_or_put(&c, "a", NULL) != LRU_CACHE_ENTRY_NIL);
     assert(lru_cache_get_or_put(&c, "b", NULL) != LRU_CACHE_ENTRY_NIL);
     assert(lru_cache_get_or_put(&c, "c", NULL) != LRU_CACHE_ENTRY_NIL);
     assert(lru_cache_get_or_put(&c, "d", NULL) != LRU_CACHE_ENTRY_NIL);
 
+    eviction = "abcd";
     assert(lru_cache_get_or_put(&c, "e", &put) != LRU_CACHE_ENTRY_NIL && put);
     assert(lru_cache_get_or_put(&c, "f", &put) != LRU_CACHE_ENTRY_NIL && put);
     assert(lru_cache_get_or_put(&c, "g", &put) != LRU_CACHE_ENTRY_NIL && put);
     assert(lru_cache_get_or_put(&c, "h", &put) != LRU_CACHE_ENTRY_NIL && put);
+    assert(*eviction == 0);
 
+    eviction = "efgh";
     assert(lru_cache_get_or_put(&c, "a", &put) != LRU_CACHE_ENTRY_NIL && put);
     assert(lru_cache_get_or_put(&c, "b", &put) != LRU_CACHE_ENTRY_NIL && put);
     assert(lru_cache_get_or_put(&c, "c", &put) != LRU_CACHE_ENTRY_NIL && put);
     assert(lru_cache_get_or_put(&c, "d", &put) != LRU_CACHE_ENTRY_NIL && put);
+    assert(*eviction == 0);
 
     free(hashmap);
     free(cache);
@@ -290,8 +322,9 @@ static void test_cache_grow_full(void)
     size_t hashmap_bytes, cache_bytes;
     void *hashmap, *cache;
 
-    assert(lru_cache_init(&c, sizeof(char), 1, hash_to_self, my_compare, NULL) == 0);
+    assert(lru_cache_init(&c, sizeof(char), 1, hash_to_self, my_compare, destroy) == 0);
 
+    eviction = "";
     assert(lru_cache_set_nmemb(&c, 4, &hashmap_bytes, &cache_bytes) == 0);
 
     hashmap = malloc(hashmap_bytes);
@@ -335,6 +368,40 @@ static void test_cache_grow_full(void)
     free(cache);
 }
 
+static void test_cache_simple_flush(void)
+{
+    bool put;
+    struct lru_cache c;
+    size_t hashmap_bytes, cache_bytes;
+    void *hashmap, *cache;
+
+    assert(lru_cache_init(&c, sizeof(char), 1, hash_to_self, my_compare, destroy) == 0);
+
+    eviction = "";
+    assert(lru_cache_set_nmemb(&c, 16, &hashmap_bytes, &cache_bytes) == 0);
+
+    hashmap = malloc(hashmap_bytes);
+    cache = malloc(cache_bytes);
+
+    assert(lru_cache_set_memory(&c, hashmap, cache) == 0);
+
+    assert(lru_cache_get_or_put(&c, "a", &put) != LRU_CACHE_ENTRY_NIL && put);
+    assert(lru_cache_get_or_put(&c, "b", &put) != LRU_CACHE_ENTRY_NIL && put);
+    assert(lru_cache_get_or_put(&c, "a", NULL) != LRU_CACHE_ENTRY_NIL);
+    assert(lru_cache_get_or_put(&c, "b", NULL) != LRU_CACHE_ENTRY_NIL);
+
+    eviction = "ba";
+    lru_cache_flush(&c);
+    assert(*eviction == 0);
+
+    eviction = "";
+    assert(lru_cache_get_or_put(&c, "a", &put) != LRU_CACHE_ENTRY_NIL && put);
+    assert(lru_cache_get_or_put(&c, "b", &put) != LRU_CACHE_ENTRY_NIL && put);
+
+    free(hashmap);
+    free(cache);
+}
+
 static void test_cache_flush_full_with_collisions(void)
 {
     bool put;
@@ -342,8 +409,9 @@ static void test_cache_flush_full_with_collisions(void)
     size_t hashmap_bytes, cache_bytes;
     void *hashmap, *cache;
 
-    assert(lru_cache_init(&c, sizeof(char), 1, hash_to_zero, my_compare, NULL) == 0);
+    assert(lru_cache_init(&c, sizeof(char), 1, hash_to_zero, my_compare, destroy) == 0);
 
+    eviction = "";
     assert(lru_cache_set_nmemb(&c, 4, &hashmap_bytes, &cache_bytes) == 0);
 
     hashmap = malloc(hashmap_bytes);
@@ -361,7 +429,9 @@ static void test_cache_flush_full_with_collisions(void)
     assert(lru_cache_get_or_put(&c, "c", NULL) != LRU_CACHE_ENTRY_NIL);
     assert(lru_cache_get_or_put(&c, "d", NULL) != LRU_CACHE_ENTRY_NIL);
 
+    eviction = "dcba";
     lru_cache_flush(&c);
+    assert(*eviction == 0);
 
     assert(lru_cache_get_or_put(&c, "a", &put) != LRU_CACHE_ENTRY_NIL && put);
     assert(lru_cache_get_or_put(&c, "b", &put) != LRU_CACHE_ENTRY_NIL && put);
@@ -387,5 +457,6 @@ int main()
     TEST(test_cache_random_access);
     TEST(test_cache_shrink);
     TEST(test_cache_grow_full);
+    TEST(test_cache_simple_flush);
     TEST(test_cache_flush_full_with_collisions);
 }
