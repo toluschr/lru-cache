@@ -162,25 +162,41 @@ int lru_cache_init(struct lru_cache *s, uint32_t size, uint32_t align, lru_cache
     s->nmemb = 0;
 
     s->lru = LRU_CACHE_ENTRY_NIL;
+    s->mru = LRU_CACHE_ENTRY_NIL;
     return 0;
 }
 
 int lru_cache_set_nmemb(struct lru_cache *s, uint32_t nmemb, size_t *hashmap_bytes, size_t *cache_bytes)
 {
+    uint32_t i, h;
+    struct lru_cache_entry *e;
+
     uint32_t nmemb_max = SIZE_MAX / (sizeof(struct lru_cache_entry) + s->size);
 
     if (nmemb == 0) {
         return EINVAL;
     }
 
-    if (s->nmemb > nmemb_max) {
+    if (nmemb > nmemb_max) {
         return EOVERFLOW;
     }
 
-    if (s->nmemb < nmemb) {
-    }
-
+    s->old_nmemb = s->nmemb;
     s->nmemb = nmemb;
+
+    if (s->nmemb < s->old_nmemb) {
+        for (i = s->nmemb; i < s->old_nmemb; i++) {
+            e = lru_cache_get_entry(s, i);
+            h = s->hash(e->key);
+
+            if (s->destroy) {
+                s->destroy(e->key, i);
+            }
+
+            lru_cache_pop(s, e);
+            lru_cache_cpop(s, i, e, h % s->old_nmemb);
+        }
+    }
 
     if (hashmap_bytes) {
         *hashmap_bytes = s->nmemb * sizeof(uint32_t);
