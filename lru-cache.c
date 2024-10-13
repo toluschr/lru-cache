@@ -279,11 +279,11 @@ int lru_cache_set_memory(struct lru_cache *s, void *hashmap, void *cache)
             s->hashmap[i] = LRU_CACHE_ENTRY_NIL;
         }
 
-        if (s->lru == LRU_CACHE_ENTRY_NIL) {
-            s->lru = s->old_nmemb;
-        } else {
+        if (s->lru != LRU_CACHE_ENTRY_NIL) {
             lru_cache_get_entry(s, s->lru)->lru = s->nmemb - 1;
         }
+
+        s->lru = s->old_nmemb;
 
         if (s->mru == LRU_CACHE_ENTRY_NIL) {
             s->mru = s->nmemb - 1;
