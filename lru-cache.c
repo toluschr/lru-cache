@@ -211,7 +211,7 @@ int lru_cache_set_nmemb(struct lru_cache *s, uint32_t nmemb, size_t *hashmap_byt
 
 int lru_cache_set_memory(struct lru_cache *s, void *hashmap, void *cache)
 {
-    uint32_t i;
+    uint32_t i, h;
     struct lru_cache_entry *e;
 
     size_t hashmap_bytes = s->nmemb * sizeof(*s->hashmap);
@@ -252,10 +252,23 @@ int lru_cache_set_memory(struct lru_cache *s, void *hashmap, void *cache)
         }
     }
 
+    for (i = s->mru; (e = lru_cache_get_entry(s, i))->clru != i; i = e->lru) {
+        assert(i < s->old_nmemb);
+
+        h = s->hash(e->key);
+        lru_cache_cpop(s, i, e, h % s->old_nmemb);
+
+        e->clru = s->hashmap[h % s->nmemb];
+        e->cmru = LRU_CACHE_ENTRY_NIL;
+
+        if (e->clru != LRU_CACHE_ENTRY_NIL) {
+            lru_cache_get_entry(s, e->clru)->cmru = i;
+        }
+
+        s->hashmap[h % s->nmemb] = i;
+    }
+
     s->old_nmemb = s->nmemb;
-
-    // @todo: Rehash for size change
-
     return 0;
 }
 
