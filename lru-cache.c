@@ -383,5 +383,8 @@ void lru_cache_flush(struct lru_cache *s)
         }
 
         lru_cache_cpop(s, i, e, h % s->nmemb);
+
+        e->clru = i;
+        e->cmru = LRU_CACHE_ENTRY_NIL;
     }
 }
