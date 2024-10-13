@@ -139,12 +139,31 @@ void lru_cache_print(struct lru_cache *s, FILE *file)
     }
     fprintf(file, "\n");
 
+    memset(visited, 0, sizeof(visited));
+    nvisited = 0;
+
+    i = s->lru;
+
+    fprintf(file, "LRU chain");
+    while (i != LRU_CACHE_ENTRY_NIL) {
+        struct lru_cache_entry *e = lru_cache_get_entry(s, i);
+
+        visited[i] = true;
+        nvisited++;
+        fprintf(file, " --> %d", i);
+
+        i = e->mru;
+    }
+    fprintf(file, "\n");
+
     fprintf(file, "LRU: %d\n", s->lru);
     fprintf(file, "MRU: %d\n", s->mru);
 
     if (nvisited != s->nmemb) {
         fprintf(file, "%d entries are unlinked ((CORRUPTION))\n", s->nmemb - nvisited);
     }
+
+    fprintf(file, "\n");
 }
 
 int lru_cache_init(
