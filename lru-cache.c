@@ -271,7 +271,7 @@ int lru_cache_set_memory(struct lru_cache *s, void *hashmap, void *cache)
         }
     }
 
-    for (i = s->mru; (e = lru_cache_get_entry(s, i))->clru != i; i = e->lru) {
+    for (i = s->mru; (e = lru_cache_get_entry(s, i)) && e->clru != i; i = e->lru) {
         assert(i < s->old_nmemb);
 
         h = s->hash(e->key);
@@ -306,9 +306,7 @@ uint32_t lru_cache_get_or_put(struct lru_cache *s, const void *key, bool *put)
     uint32_t i = s->hashmap[new_hash % s->nmemb];
     struct lru_cache_entry *e = NULL;
 
-    while (i != LRU_CACHE_ENTRY_NIL) {
-        e = lru_cache_get_entry(s, i);
-
+    while ((e = lru_cache_get_entry(s, i))) {
         if (s->compare(e->key, key) == 0) {
             if (put) {
                 *put = false;
@@ -358,7 +356,7 @@ void lru_cache_flush(struct lru_cache *s)
     uint32_t i, h;
     struct lru_cache_entry *e;
 
-    for (i = s->mru; (e = lru_cache_get_entry(s, i))->clru != i; i = e->lru) {
+    for (i = s->mru; (e = lru_cache_get_entry(s, i)) && e->clru != i; i = e->lru) {
         h = s->hash(e->key);
 
         if (s->destroy) {
