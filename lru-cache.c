@@ -22,12 +22,22 @@ static void lru_cache_pop(struct lru_cache *s, struct lru_cache_entry *e)
     }
 }
 
-static void lru_cache_cpop(
+static void lru_cache_rehash(
     struct lru_cache *s,
     uint32_t i,
     struct lru_cache_entry *e,
-    uint32_t old_hash)
+    uint32_t old_hash,
+    uint32_t new_hash)
 {
+    uint32_t *index;
+    if (new_hash == LRU_CACHE_ENTRY_NIL) {
+        index = &i;
+    } else if (s->hashmap[new_hash] != i) {
+        index = &s->hashmap[new_hash];
+    } else {
+        return;
+    }
+
     if (e->clru != LRU_CACHE_ENTRY_NIL) {
         lru_cache_get_entry(s, e->clru)->cmru = e->cmru;
     } else {
@@ -39,6 +49,15 @@ static void lru_cache_cpop(
     } else if (e->clru != i) {
         s->hashmap[old_hash] = e->clru;
     }
+
+    e->clru = *index;
+
+    if (e->clru != LRU_CACHE_ENTRY_NIL) {
+        lru_cache_get_entry(s, e->clru)->cmru = i;
+    }
+
+    e->cmru = LRU_CACHE_ENTRY_NIL;
+    *index = i;
 }
 
 static uint32_t lru_cache_update_entry(
@@ -59,19 +78,7 @@ static uint32_t lru_cache_update_entry(
         e->mru = LRU_CACHE_ENTRY_NIL;
     }
 
-    // Make current entry most recently used in the local chain if not already
-    if (s->hashmap[new_hash] != i) {
-        lru_cache_cpop(s, i, e, old_hash);
-
-        e->clru = s->hashmap[new_hash];
-        e->cmru = LRU_CACHE_ENTRY_NIL;
-
-        if (e->clru != LRU_CACHE_ENTRY_NIL) {
-            lru_cache_get_entry(s, e->clru)->cmru = i;
-        }
-
-        s->hashmap[new_hash] = i;
-    }
+    lru_cache_rehash(s, i, e, old_hash, new_hash);
 
     assert((e->clru == LRU_CACHE_ENTRY_NIL) || (lru_cache_get_entry(s, e->clru)->cmru == i));
     assert((e->cmru == LRU_CACHE_ENTRY_NIL) || (lru_cache_get_entry(s, e->cmru)->clru == i));
@@ -232,7 +239,7 @@ int lru_cache_set_nmemb(
             }
 
             lru_cache_pop(s, e);
-            lru_cache_cpop(s, i, e, h % s->old_nmemb);
+            lru_cache_rehash(s, i, e, h % s->old_nmemb, LRU_CACHE_ENTRY_NIL);
         }
     }
 
@@ -294,16 +301,7 @@ int lru_cache_set_memory(struct lru_cache *s, void *hashmap, void *cache)
         assert(i < s->old_nmemb);
 
         h = s->hash(e->key);
-        lru_cache_cpop(s, i, e, h % s->old_nmemb);
-
-        e->clru = s->hashmap[h % s->nmemb];
-        e->cmru = LRU_CACHE_ENTRY_NIL;
-
-        if (e->clru != LRU_CACHE_ENTRY_NIL) {
-            lru_cache_get_entry(s, e->clru)->cmru = i;
-        }
-
-        s->hashmap[h % s->nmemb] = i;
+        lru_cache_rehash(s, i, e, h % s->old_nmemb, h % s->nmemb);
     }
 
     s->old_nmemb = s->nmemb;
@@ -382,9 +380,6 @@ void lru_cache_flush(struct lru_cache *s)
             s->destroy(e->key, i);
         }
 
-        lru_cache_cpop(s, i, e, h % s->nmemb);
-
-        e->clru = i;
-        e->cmru = LRU_CACHE_ENTRY_NIL;
+        lru_cache_rehash(s, i, e, h % s->nmemb, LRU_CACHE_ENTRY_NIL);
     }
 }
