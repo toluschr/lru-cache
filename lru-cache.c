@@ -199,7 +199,7 @@ int lru_cache_set_nmemb(struct lru_cache *s, uint32_t nmemb, size_t *hashmap_byt
     }
 
     if (hashmap_bytes) {
-        *hashmap_bytes = s->nmemb * sizeof(uint32_t);
+        *hashmap_bytes = s->nmemb * sizeof(*s->hashmap);
     }
 
     if (cache_bytes) {
@@ -214,7 +214,7 @@ int lru_cache_set_memory(struct lru_cache *s, void *hashmap, void *cache)
     uint32_t i;
     struct lru_cache_entry *e;
 
-    size_t hashmap_bytes = s->nmemb * sizeof(uint32_t);
+    size_t hashmap_bytes = s->nmemb * sizeof(*s->hashmap);
     size_t cache_bytes = s->nmemb * (sizeof(struct lru_cache_entry) + s->size);
 
     if (UINTPTR_MAX - (uintptr_t)cache < cache_bytes) {
