@@ -336,9 +336,8 @@ void lru_cache_flush(struct lru_cache *s)
      *  + Stops early if there are unused entries, saving time
      *  - Traversal is not sequential in memory, which may reduce CPU cache efficiency
      */
+    uint32_t i, h;
     struct lru_cache_entry *e;
-    uint32_t i;
-    uint32_t h;
 
     for (i = s->mru; (e = lru_cache_get_entry(s, i))->clru != i; i = e->lru) {
         h = s->hash(e->key);
