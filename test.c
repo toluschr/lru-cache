@@ -19,7 +19,7 @@ uint32_t hash_to_zero(const void *a_)
 
 uint32_t hash_to_self(const void *a_)
 {
-    return *(char *)a_;
+    return *(char *)a_ - 'a';
 }
 
 int my_compare(const void *a_, const void *b_)
