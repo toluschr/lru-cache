@@ -22,7 +22,11 @@ static void lru_cache_pop(struct lru_cache *s, struct lru_cache_entry *e)
     }
 }
 
-static void lru_cache_cpop(struct lru_cache *s, uint32_t i, struct lru_cache_entry *e, uint32_t old_hash)
+static void lru_cache_cpop(
+    struct lru_cache *s,
+    uint32_t i,
+    struct lru_cache_entry *e,
+    uint32_t old_hash)
 {
     if (e->clru != LRU_CACHE_ENTRY_NIL) {
         lru_cache_get_entry(s, e->clru)->cmru = e->cmru;
@@ -37,7 +41,12 @@ static void lru_cache_cpop(struct lru_cache *s, uint32_t i, struct lru_cache_ent
     }
 }
 
-static uint32_t lru_cache_update_entry(struct lru_cache *s, uint32_t i, struct lru_cache_entry *e, uint32_t old_hash, uint32_t new_hash)
+static uint32_t lru_cache_update_entry(
+    struct lru_cache *s,
+    uint32_t i,
+    struct lru_cache_entry *e,
+    uint32_t old_hash,
+    uint32_t new_hash)
 {
     // Make current entry most recently used in the global chain if not already
     if (s->mru != i) {
@@ -138,7 +147,13 @@ void lru_cache_print(struct lru_cache *s, FILE *file)
     }
 }
 
-int lru_cache_init(struct lru_cache *s, uint32_t size, uint32_t align, lru_cache_hash_t hash, lru_cache_compare_t compare, lru_cache_destroy_t destroy)
+int lru_cache_init(
+    struct lru_cache *s,
+    uint32_t size,
+    uint32_t align,
+    lru_cache_hash_t hash,
+    lru_cache_compare_t compare,
+    lru_cache_destroy_t destroy)
 {
     uint32_t aligned_size = (size + align - 1) & ~(align - 1);
 
@@ -166,7 +181,11 @@ int lru_cache_init(struct lru_cache *s, uint32_t size, uint32_t align, lru_cache
     return 0;
 }
 
-int lru_cache_set_nmemb(struct lru_cache *s, uint32_t nmemb, size_t *hashmap_bytes, size_t *cache_bytes)
+int lru_cache_set_nmemb(
+    struct lru_cache *s,
+    uint32_t nmemb,
+    size_t *hashmap_bytes,
+    size_t *cache_bytes)
 {
     uint32_t i, h;
     struct lru_cache_entry *e;

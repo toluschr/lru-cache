@@ -78,12 +78,13 @@ struct lru_cache {
     uint32_t old_nmemb; ///< Previous number of cache entries for resizing.
 };
 
-int lru_cache_init(struct lru_cache *s,
-                   uint32_t size,
-                   uint32_t align,
-                   lru_cache_hash_t hash,
-                   lru_cache_compare_t compare,
-                   lru_cache_destroy_t destroy);
+int lru_cache_init(
+    struct lru_cache *s,
+    uint32_t size,
+    uint32_t align,
+    lru_cache_hash_t hash,
+    lru_cache_compare_t compare,
+    lru_cache_destroy_t destroy);
 
 /**
  * @brief Sets the number of cache entries and calculates required memory sizes.
@@ -103,10 +104,11 @@ int lru_cache_init(struct lru_cache *s,
  *         - EINVAL: Invalid `nmemb` value.
  *         - EOVERFLOW: Overflow detected while calculating memory requirements.
  */
-int lru_cache_set_nmemb(struct lru_cache *s,
-                        uint32_t nmemb,
-                        size_t *hashmap_bytes,
-                        size_t *cache_bytes);
+int lru_cache_set_nmemb(
+    struct lru_cache *s,
+    uint32_t nmemb,
+    size_t *hashmap_bytes,
+    size_t *cache_bytes);
 
 /**
  * @brief Initializes the memory for the cache using external allocation.
@@ -125,9 +127,7 @@ int lru_cache_set_nmemb(struct lru_cache *s,
  * @return 0 on success, or a positive error number:
  *         - EINVAL: Invalid pointers or unaligned memory.
  */
-int lru_cache_set_memory(struct lru_cache *s,
-                         void *hashmap,
-                         void *cache);
+int lru_cache_set_memory(struct lru_cache *s, void *hashmap, void *cache);
 
 /**
  * @brief Retrieves a pointer to a cache entry at a given index.
@@ -138,8 +138,7 @@ int lru_cache_set_memory(struct lru_cache *s,
  * @param i Index of the desired cache entry; should be a valid index within the cache.
  * @return Pointer to the lru_cache_entry if the index is valid, or NULL if invalid.
  */
-struct lru_cache_entry *lru_cache_get_entry(struct lru_cache *s,
-                                            uint32_t i);
+struct lru_cache_entry *lru_cache_get_entry(struct lru_cache *s, uint32_t i);
 
 /**
  * @brief Retrieves or inserts a cache entry based on the provided key.
@@ -166,9 +165,7 @@ struct lru_cache_entry *lru_cache_get_entry(struct lru_cache *s,
  * @return The index of the found or newly inserted cache entry. If the key is not found and `put`
  *         is NULL, `LRU_CACHE_ENTRY_NIL` is returned.
  */
-uint32_t lru_cache_get_or_put(struct lru_cache *s,
-                              const void *key,
-                              bool *put);
+uint32_t lru_cache_get_or_put(struct lru_cache *s, const void *key, bool *put);
 
 /**
  * @brief Flushes the entire cache, destroying all entries.
