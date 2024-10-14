@@ -20,6 +20,9 @@ static void lru_cache_pop(struct lru_cache *s, struct lru_cache_entry *e)
     } else {
         s->mru = e->lru;
     }
+
+    e->mru = LRU_CACHE_ENTRY_NIL;
+    e->lru = LRU_CACHE_ENTRY_NIL;
 }
 
 static void lru_cache_rehash(
@@ -248,10 +251,18 @@ int lru_cache_set_nmemb(
                 s->destroy(e->key, i);
             }
 
-            // Do not update pointers here, the entry is guaranteed never
-            // to be used again.
             lru_cache_pop(s, e);
             lru_cache_rehash(s, i, e, h % s->old_nmemb, LRU_CACHE_ENTRY_NIL);
+        }
+
+        assert(s->lru < s->nmemb);
+        assert(s->mru < s->nmemb);
+
+        for (i = s->mru; (e = lru_cache_get_entry(s, i)) && e->clru != i; i = e->lru) {
+            assert(i < s->old_nmemb);
+
+            h = s->hash(e->key);
+            lru_cache_rehash(s, i, e, h % s->old_nmemb, h % s->nmemb);
         }
     }
 
@@ -307,13 +318,13 @@ int lru_cache_set_memory(struct lru_cache *s, void *hashmap, void *cache)
         if (s->mru == LRU_CACHE_ENTRY_NIL) {
             s->mru = s->nmemb - 1;
         }
-    }
 
-    for (i = s->mru; (e = lru_cache_get_entry(s, i)) && e->clru != i; i = e->lru) {
-        assert(i < s->old_nmemb);
+        for (i = s->mru; (e = lru_cache_get_entry(s, i)) && e->clru != i; i = e->lru) {
+            assert(i < s->old_nmemb);
 
-        h = s->hash(e->key);
-        lru_cache_rehash(s, i, e, h % s->old_nmemb, h % s->nmemb);
+            h = s->hash(e->key);
+            lru_cache_rehash(s, i, e, h % s->old_nmemb, h % s->nmemb);
+        }
     }
 
     s->old_nmemb = s->nmemb;
