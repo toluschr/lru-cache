@@ -202,6 +202,9 @@ int lru_cache_init(
         return EOVERFLOW;
     }
 
+    s->hashmap = NULL;
+    s->cache = NULL;
+
     s->destroy = destroy;
     s->compare = compare;
     s->hash = hash;
