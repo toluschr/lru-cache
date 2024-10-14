@@ -303,6 +303,13 @@ int lru_cache_set_memory(struct lru_cache *s, void *hashmap, void *cache)
             e->lru = (i > s->old_nmemb) ? (i - 1) : LRU_CACHE_ENTRY_NIL;
             e->mru = (i < s->nmemb - 1) ? (i + 1) : s->lru;
 
+            /*
+             * The member clru of a cache entry is tri-state:
+             *
+             * 1. Not in a collision chain (e->clru == i)
+             * 2. The last element of a collision chain (e->clru == LRU_CACHE_ENTRY_NIL)
+             * 3. Any other element of a collision chain (e->clru != i && e->clru != lru_cache_entry_nil)
+             */
             e->clru = i;
             e->cmru = LRU_CACHE_ENTRY_NIL;
 
@@ -320,7 +327,7 @@ int lru_cache_set_memory(struct lru_cache *s, void *hashmap, void *cache)
         }
 
         for (i = s->mru; (e = lru_cache_get_entry(s, i)) && e->clru != i; i = e->lru) {
-            assert(i < s->old_nmemb);
+            assert(i < s->old_nmemb && i < s->nmemb);
 
             h = s->hash(e->key);
             lru_cache_rehash(s, i, e, h % s->old_nmemb, h % s->nmemb);

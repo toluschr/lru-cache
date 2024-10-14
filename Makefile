@@ -1,5 +1,5 @@
 CC := gcc
-CFLAGS := -Wall -Wextra -Werror -pedantic -std=c11 -D_XOPEN_SOURCE=700
+CFLAGS := -O3 -Wall -Wextra -Werror -pedantic -std=c11 -D_XOPEN_SOURCE=700
 
 .PHONY: all
 all: lru-cache lru-cache.o
