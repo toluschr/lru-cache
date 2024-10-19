@@ -239,11 +239,10 @@ int lru_cache_set_nmemb(
         return EOVERFLOW;
     }
 
-    s->old_nmemb = s->nmemb;
-    s->nmemb = nmemb;
+    s->try_nmemb = nmemb;
 
-    if (s->nmemb < s->old_nmemb) {
-        for (i = s->nmemb; i < s->old_nmemb; i++) {
+    if (s->try_nmemb < s->nmemb) {
+        for (i = s->try_nmemb; i < s->nmemb; i++) {
             e = lru_cache_get_entry(s, i);
             h = s->hash(e->key);
 
@@ -252,26 +251,26 @@ int lru_cache_set_nmemb(
             }
 
             lru_cache_pop(s, e);
-            lru_cache_rehash(s, i, e, h % s->old_nmemb, LRU_CACHE_ENTRY_NIL);
+            lru_cache_rehash(s, i, e, h % s->nmemb, LRU_CACHE_ENTRY_NIL);
         }
 
-        assert(s->lru < s->nmemb);
-        assert(s->mru < s->nmemb);
+        assert(s->lru < s->try_nmemb);
+        assert(s->mru < s->try_nmemb);
 
         for (i = s->mru; (e = lru_cache_get_entry(s, i)) && e->clru != i; i = e->lru) {
-            assert(i < s->old_nmemb);
+            assert(i < s->nmemb);
 
             h = s->hash(e->key);
-            lru_cache_rehash(s, i, e, h % s->old_nmemb, h % s->nmemb);
+            lru_cache_rehash(s, i, e, h % s->nmemb, h % s->try_nmemb);
         }
     }
 
     if (hashmap_bytes) {
-        *hashmap_bytes = s->nmemb * sizeof(*s->hashmap);
+        *hashmap_bytes = s->try_nmemb * sizeof(*s->hashmap);
     }
 
     if (cache_bytes) {
-        *cache_bytes = s->nmemb * (sizeof(struct lru_cache_entry) + s->size);
+        *cache_bytes = s->try_nmemb * (sizeof(struct lru_cache_entry) + s->size);
     }
 
     return 0;
@@ -282,8 +281,8 @@ int lru_cache_set_memory(struct lru_cache *s, void *hashmap, void *cache)
     uint32_t i, h;
     struct lru_cache_entry *e;
 
-    size_t hashmap_bytes = s->nmemb * sizeof(*s->hashmap);
-    size_t cache_bytes = s->nmemb * (sizeof(struct lru_cache_entry) + s->size);
+    size_t hashmap_bytes = s->try_nmemb * sizeof(*s->hashmap);
+    size_t cache_bytes = s->try_nmemb * (sizeof(struct lru_cache_entry) + s->size);
 
     if (UINTPTR_MAX - (uintptr_t)cache < cache_bytes) {
         return EOVERFLOW;
@@ -296,12 +295,12 @@ int lru_cache_set_memory(struct lru_cache *s, void *hashmap, void *cache)
     s->hashmap = hashmap;
     s->cache = cache;
 
-    if (s->old_nmemb < s->nmemb) {
-        for (i = s->old_nmemb; i < s->nmemb; i++) {
+    if (s->nmemb < s->try_nmemb) {
+        for (i = s->nmemb; i < s->try_nmemb; i++) {
             e = lru_cache_get_entry(s, i);
 
-            e->lru = (i > s->old_nmemb) ? (i - 1) : LRU_CACHE_ENTRY_NIL;
-            e->mru = (i < s->nmemb - 1) ? (i + 1) : s->lru;
+            e->lru = (i > s->nmemb) ? (i - 1) : LRU_CACHE_ENTRY_NIL;
+            e->mru = (i < s->try_nmemb - 1) ? (i + 1) : s->lru;
 
             /*
              * The member clru of a cache entry is tri-state:
@@ -317,24 +316,24 @@ int lru_cache_set_memory(struct lru_cache *s, void *hashmap, void *cache)
         }
 
         if (s->lru != LRU_CACHE_ENTRY_NIL) {
-            lru_cache_get_entry(s, s->lru)->lru = s->nmemb - 1;
+            lru_cache_get_entry(s, s->lru)->lru = s->try_nmemb - 1;
         }
 
-        s->lru = s->old_nmemb;
+        s->lru = s->nmemb;
 
         if (s->mru == LRU_CACHE_ENTRY_NIL) {
-            s->mru = s->nmemb - 1;
+            s->mru = s->try_nmemb - 1;
         }
 
         for (i = s->mru; (e = lru_cache_get_entry(s, i)) && e->clru != i; i = e->lru) {
-            assert(i < s->old_nmemb && i < s->nmemb);
+            assert(i < s->nmemb && i < s->try_nmemb);
 
             h = s->hash(e->key);
-            lru_cache_rehash(s, i, e, h % s->old_nmemb, h % s->nmemb);
+            lru_cache_rehash(s, i, e, h % s->nmemb, h % s->try_nmemb);
         }
     }
 
-    s->old_nmemb = s->nmemb;
+    s->nmemb = s->try_nmemb;
     return 0;
 }
 

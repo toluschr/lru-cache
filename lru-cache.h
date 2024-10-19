@@ -71,11 +71,10 @@ struct lru_cache {
 
     uint32_t size; ///< Size of each cache entry.
     uint32_t nmemb; ///< Number of cache entries.
+    uint32_t try_nmemb; //< Size requested through lru_cache_set_nmemb.
 
     uint32_t lru; ///< Pointer to the least recently used entry.
     uint32_t mru; ///< Pointer to the most recently used entry.
-
-    uint32_t old_nmemb; ///< Previous number of cache entries for resizing.
 };
 
 int lru_cache_init(
