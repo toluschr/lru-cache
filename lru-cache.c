@@ -337,6 +337,8 @@ int lru_cache_set_memory(struct lru_cache *s, void *hashmap, void *cache)
         s->nmemb = s->try_nmemb;
     }
 
+    // guaranteed by correct order of set_nmemb and set_memory
+    assert(s->nmemb == s->try_nmemb);
     return 0;
 }
 
