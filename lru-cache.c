@@ -239,10 +239,8 @@ int lru_cache_set_nmemb(
         return EOVERFLOW;
     }
 
-    s->try_nmemb = nmemb;
-
-    if (s->try_nmemb < s->nmemb) {
-        for (i = s->try_nmemb; i < s->nmemb; i++) {
+    if (nmemb < s->nmemb) {
+        for (i = nmemb; i < s->nmemb; i++) {
             e = lru_cache_get_entry(s, i);
             h = s->hash(e->key);
 
@@ -254,16 +252,20 @@ int lru_cache_set_nmemb(
             lru_cache_rehash(s, i, e, h % s->nmemb, LRU_CACHE_ENTRY_NIL);
         }
 
-        assert(s->lru < s->try_nmemb);
-        assert(s->mru < s->try_nmemb);
+        assert(s->lru < nmemb);
+        assert(s->mru < nmemb);
 
         for (i = s->mru; (e = lru_cache_get_entry(s, i)) && e->clru != i; i = e->lru) {
             assert(i < s->nmemb);
 
             h = s->hash(e->key);
-            lru_cache_rehash(s, i, e, h % s->nmemb, h % s->try_nmemb);
+            lru_cache_rehash(s, i, e, h % s->nmemb, h % nmemb);
         }
+
+        s->nmemb = nmemb;
     }
+
+    s->try_nmemb = nmemb;
 
     if (hashmap_bytes) {
         *hashmap_bytes = s->try_nmemb * sizeof(*s->hashmap);
@@ -331,9 +333,10 @@ int lru_cache_set_memory(struct lru_cache *s, void *hashmap, void *cache)
             h = s->hash(e->key);
             lru_cache_rehash(s, i, e, h % s->nmemb, h % s->try_nmemb);
         }
+
+        s->nmemb = s->try_nmemb;
     }
 
-    s->nmemb = s->try_nmemb;
     return 0;
 }
 

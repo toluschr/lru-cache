@@ -447,6 +447,54 @@ static void test_cache_flush_full_with_collisions(void)
     free(cache);
 }
 
+static void test_cache_set_nmemb_initial_multi(void)
+{
+    struct lru_cache c;
+    size_t hashmap_bytes, cache_bytes;
+    void *hashmap, *cache;
+
+    assert(lru_cache_init(&c, sizeof(char), 1, hash_to_zero, my_compare, destroy) == 0);
+
+    assert(lru_cache_set_nmemb(&c, 4, &hashmap_bytes, &cache_bytes) == 0);
+    assert(lru_cache_set_nmemb(&c, 2, &hashmap_bytes, &cache_bytes) == 0);
+    assert(lru_cache_set_nmemb(&c, 1, &hashmap_bytes, &cache_bytes) == 0);
+    assert(lru_cache_set_nmemb(&c, 8, &hashmap_bytes, &cache_bytes) == 0);
+    assert(lru_cache_set_nmemb(&c, 4, &hashmap_bytes, &cache_bytes) == 0);
+
+    hashmap = malloc(hashmap_bytes);
+    cache = malloc(cache_bytes);
+
+    assert(lru_cache_set_memory(&c, hashmap, cache) == 0);
+}
+
+static void test_cache_set_nmemb_multi(void)
+{
+    struct lru_cache c;
+    size_t hashmap_bytes, cache_bytes;
+    void *hashmap, *cache;
+
+    assert(lru_cache_init(&c, sizeof(char), 1, hash_to_zero, my_compare, destroy) == 0);
+
+    assert(lru_cache_set_nmemb(&c, 8, &hashmap_bytes, &cache_bytes) == 0);
+
+    hashmap = malloc(hashmap_bytes);
+    cache = malloc(cache_bytes);
+
+    assert(lru_cache_set_memory(&c, hashmap, cache) == 0);
+
+    assert(lru_cache_set_nmemb(&c, 16, &hashmap_bytes, &cache_bytes) == 0);
+    assert(lru_cache_set_nmemb(&c, 8, &hashmap_bytes, &cache_bytes) == 0);
+    assert(lru_cache_set_nmemb(&c, 7, &hashmap_bytes, &cache_bytes) == 0);
+    assert(lru_cache_set_nmemb(&c, 8, &hashmap_bytes, &cache_bytes) == 0);
+    assert(lru_cache_set_nmemb(&c, 4, &hashmap_bytes, &cache_bytes) == 0);
+    assert(lru_cache_set_nmemb(&c, 5, &hashmap_bytes, &cache_bytes) == 0);
+
+    hashmap = realloc(hashmap, hashmap_bytes);
+    cache = realloc(cache, cache_bytes);
+
+    assert(lru_cache_set_memory(&c, hashmap, cache) == 0);
+}
+
 int main()
 {
     TEST(test_cache_collision_first_in_local_chain);
@@ -459,4 +507,6 @@ int main()
     TEST(test_cache_grow_full);
     TEST(test_cache_simple_flush);
     TEST(test_cache_flush_full_with_collisions);
+    TEST(test_cache_set_nmemb_initial_multi);
+    TEST(test_cache_set_nmemb_multi);
 }
