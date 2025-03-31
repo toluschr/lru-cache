@@ -77,6 +77,9 @@ struct lru_cache {
     uint32_t mru; ///< Pointer to the most recently used entry.
 };
 
+bool lru_cache_is_full(
+    struct lru_cache *s);
+
 int lru_cache_init(
     struct lru_cache *s,
     uint32_t size,
@@ -126,7 +129,10 @@ int lru_cache_set_nmemb(
  * @return 0 on success, or a positive error number:
  *         - EINVAL: Invalid pointers or unaligned memory.
  */
-int lru_cache_set_memory(struct lru_cache *s, void *hashmap, void *cache);
+int lru_cache_set_memory(
+    struct lru_cache *s,
+    void *hashmap,
+    void *cache);
 
 /**
  * @brief Retrieves a pointer to a cache entry at a given index.
@@ -137,7 +143,9 @@ int lru_cache_set_memory(struct lru_cache *s, void *hashmap, void *cache);
  * @param i Index of the desired cache entry; should be a valid index within the cache.
  * @return Pointer to the lru_cache_entry if the index is valid, or NULL if invalid.
  */
-struct lru_cache_entry *lru_cache_get_entry(struct lru_cache *s, uint32_t i);
+struct lru_cache_entry *lru_cache_get_entry(
+    struct lru_cache *s,
+    uint32_t i);
 
 /**
  * @brief Retrieves or inserts a cache entry based on the provided key.
@@ -164,7 +172,10 @@ struct lru_cache_entry *lru_cache_get_entry(struct lru_cache *s, uint32_t i);
  * @return The index of the found or newly inserted cache entry. If the key is not found and `put`
  *         is NULL, `LRU_CACHE_ENTRY_NIL` is returned.
  */
-uint32_t lru_cache_get_or_put(struct lru_cache *s, const void *key, bool *put);
+uint32_t lru_cache_get_or_put(
+    struct lru_cache *s,
+    const void *key,
+    bool *put);
 
 /**
  * @brief Flushes the entire cache, destroying all entries.
@@ -175,8 +186,11 @@ uint32_t lru_cache_get_or_put(struct lru_cache *s, const void *key, bool *put);
  *
  * @param s Pointer to the lru_cache structure.
  */
-void lru_cache_flush(struct lru_cache *s);
+void lru_cache_flush(
+    struct lru_cache *s);
 
-void lru_cache_print(struct lru_cache *s, FILE *file);
+void lru_cache_print(
+    struct lru_cache *s,
+    FILE *file);
 
 #endif // LRU_CACHE_H_

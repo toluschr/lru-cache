@@ -220,6 +220,13 @@ int lru_cache_init(
     return 0;
 }
 
+bool lru_cache_is_full(
+    struct lru_cache *s)
+{
+    struct lru_cache_entry *entry = lru_cache_get_entry(s, s->lru);
+    return (entry == NULL) || (entry->clru != s->lru);
+}
+
 int lru_cache_set_nmemb(
     struct lru_cache *s,
     uint32_t nmemb,
