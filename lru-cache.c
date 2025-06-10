@@ -183,19 +183,9 @@ void lru_cache_print(struct lru_cache *s, FILE *file)
     fprintf(file, "\n");
 }
 
-int lru_cache_init(
-    struct lru_cache *s,
-    uint32_t size,
-    uint32_t align,
-    lru_cache_hash_t hash,
-    lru_cache_compare_t compare,
-    lru_cache_destroy_t destroy)
+int lru_cache_align(uint32_t size, uint32_t align, uint32_t *aligned_size_)
 {
     uint32_t aligned_size = (size + align - 1) & ~(align - 1);
-
-    if (compare == NULL || hash == NULL) {
-        return EINVAL;
-    }
 
     if (size == 0 || align == 0 || align > sizeof(struct lru_cache_entry)) {
         return EINVAL;
@@ -203,6 +193,28 @@ int lru_cache_init(
 
     if (aligned_size < size) {
         return EOVERFLOW;
+    }
+
+    if (aligned_size_) {
+        *aligned_size_ = aligned_size;
+    }
+
+    return 0;
+}
+
+int lru_cache_init(
+    struct lru_cache *s,
+    uint32_t aligned_size,
+    lru_cache_hash_t hash,
+    lru_cache_compare_t compare,
+    lru_cache_destroy_t destroy)
+{
+    if (aligned_size == 0) {
+        return EINVAL;
+    }
+
+    if (compare == NULL || hash == NULL) {
+        return EINVAL;
     }
 
     s->hashmap = NULL;
@@ -227,16 +239,9 @@ bool lru_cache_is_full(
     return (entry == NULL) || (entry->clru != s->lru);
 }
 
-int lru_cache_set_nmemb(
-    struct lru_cache *s,
-    uint32_t nmemb,
-    size_t *hashmap_bytes,
-    size_t *cache_bytes)
+int lru_cache_calc_sizes(size_t aligned_size, size_t nmemb, size_t *hashmap_bytes, size_t *cache_bytes)
 {
-    uint32_t i, h;
-    struct lru_cache_entry *e;
-
-    uint32_t nmemb_max = SIZE_MAX / (sizeof(struct lru_cache_entry) + s->size);
+    uint32_t nmemb_max = SIZE_MAX / (sizeof(struct lru_cache_entry) + aligned_size);
 
     if (nmemb == 0) {
         return EINVAL;
@@ -244,6 +249,32 @@ int lru_cache_set_nmemb(
 
     if (nmemb > nmemb_max) {
         return EOVERFLOW;
+    }
+
+    if (hashmap_bytes) {
+        *hashmap_bytes = nmemb * sizeof(uint32_t);
+    }
+
+    if (cache_bytes) {
+        *cache_bytes = nmemb * (sizeof(struct lru_cache_entry) + aligned_size);
+    }
+
+    return 0;
+}
+
+int lru_cache_set_nmemb(
+    struct lru_cache *s,
+    uint32_t nmemb,
+    size_t *hashmap_bytes,
+    size_t *cache_bytes)
+{
+    int rv = 0;
+    uint32_t i, h;
+    struct lru_cache_entry *e;
+
+    rv = lru_cache_calc_sizes(s->size, nmemb, hashmap_bytes, cache_bytes);
+    if (rv != 0) {
+        return rv;
     }
 
     if (nmemb < s->nmemb) {
@@ -273,16 +304,7 @@ int lru_cache_set_nmemb(
     }
 
     s->try_nmemb = nmemb;
-
-    if (hashmap_bytes) {
-        *hashmap_bytes = s->try_nmemb * sizeof(*s->hashmap);
-    }
-
-    if (cache_bytes) {
-        *cache_bytes = s->try_nmemb * (sizeof(struct lru_cache_entry) + s->size);
-    }
-
-    return 0;
+    return rv;
 }
 
 int lru_cache_set_memory(struct lru_cache *s, void *hashmap, void *cache)

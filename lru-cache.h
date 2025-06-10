@@ -80,10 +80,11 @@ struct lru_cache {
 bool lru_cache_is_full(
     struct lru_cache *s);
 
+int lru_cache_align(uint32_t size, uint32_t align, uint32_t *aligned_size_);
+
 int lru_cache_init(
     struct lru_cache *s,
-    uint32_t size,
-    uint32_t align,
+    uint32_t aligned_size,
     lru_cache_hash_t hash,
     lru_cache_compare_t compare,
     lru_cache_destroy_t destroy);

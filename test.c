@@ -46,7 +46,7 @@ static void test_cache_collision_first_in_local_chain(void)
     size_t hashmap_bytes, cache_bytes;
     void *hashmap, *cache;
 
-    assert(lru_cache_init(&c, sizeof(char), 1, hash_to_zero, my_compare, destroy) == 0);
+    assert(lru_cache_init(&c, sizeof(char), hash_to_zero, my_compare, destroy) == 0);
 
     eviction = "";
     assert(lru_cache_set_nmemb(&c, 2, &hashmap_bytes, &cache_bytes) == 0);
@@ -89,7 +89,7 @@ static void test_cache_full_no_collisions(void)
     size_t hashmap_bytes, cache_bytes;
     void *hashmap, *cache;
 
-    assert(lru_cache_init(&c, sizeof(char), 1, hash_to_self, my_compare, destroy) == 0);
+    assert(lru_cache_init(&c, sizeof(char), hash_to_self, my_compare, destroy) == 0);
 
     eviction = "";
     assert(lru_cache_set_nmemb(&c, 16, &hashmap_bytes, &cache_bytes) == 0);
@@ -141,17 +141,16 @@ static void test_cache_full_no_collisions(void)
 
 static void test_cache_invalid_alignment(void)
 {
-    assert(lru_cache_init(&c, sizeof(char), 0, hash_to_zero, my_compare, NULL) == EINVAL);
-    assert(lru_cache_is_full(&c));
-
-    assert(lru_cache_init(&c, sizeof(char), sizeof(struct lru_cache_entry) + 1, hash_to_zero, my_compare, NULL) == EINVAL);
-    assert(lru_cache_init(&c, sizeof(char), sizeof(struct lru_cache_entry), hash_to_zero, my_compare, NULL) == 0);
+    assert(lru_cache_align(sizeof(char), 0, NULL) == EINVAL);
+    assert(lru_cache_align(sizeof(char), sizeof(struct lru_cache_entry) + 1, NULL) == EINVAL);
+    assert(lru_cache_align(sizeof(char), sizeof(struct lru_cache_entry), NULL) == 0);
 }
 
 static void test_cache_invalid_size_nmemb(void)
 {
-    assert(lru_cache_init(&c, 0, 1, hash_to_zero, my_compare, NULL) == EINVAL);
-    assert(lru_cache_init(&c, sizeof(char), 1, hash_to_zero, my_compare, NULL) == 0);
+    struct lru_cache c;
+    assert(lru_cache_init(&c, 0, hash_to_zero, my_compare, NULL) == EINVAL);
+    assert(lru_cache_init(&c, sizeof(char), hash_to_zero, my_compare, NULL) == 0);
 
     assert(lru_cache_set_nmemb(&c, 0, NULL, NULL) == EINVAL);
     assert(lru_cache_set_nmemb(&c, 1, NULL, NULL) == 0);
@@ -163,7 +162,7 @@ static void test_cache_single_entry(void)
     size_t hashmap_bytes, cache_bytes;
     void *hashmap, *cache;
 
-    assert(lru_cache_init(&c, sizeof(char), 1, hash_to_self, my_compare, destroy) == 0);
+    assert(lru_cache_init(&c, sizeof(char), hash_to_self, my_compare, destroy) == 0);
 
     eviction = "";
     assert(lru_cache_set_nmemb(&c, 1, &hashmap_bytes, &cache_bytes) == 0);
@@ -214,7 +213,7 @@ static void test_cache_random_access(void)
     size_t hashmap_bytes, cache_bytes;
     void *hashmap, *cache;
 
-    assert(lru_cache_init(&c, sizeof(char), 1, hash_to_self, my_compare, destroy) == 0);
+    assert(lru_cache_init(&c, sizeof(char), hash_to_self, my_compare, destroy) == 0);
 
     eviction = "";
     assert(lru_cache_set_nmemb(&c, 16, &hashmap_bytes, &cache_bytes) == 0);
@@ -274,7 +273,7 @@ static void test_cache_shrink(void)
     size_t hashmap_bytes, cache_bytes;
     void *hashmap, *cache;
 
-    assert(lru_cache_init(&c, sizeof(char), 1, hash_to_self, my_compare, destroy) == 0);
+    assert(lru_cache_init(&c, sizeof(char), hash_to_self, my_compare, destroy) == 0);
 
     eviction = "";
     assert(lru_cache_set_nmemb(&c, 8, &hashmap_bytes, &cache_bytes) == 0);
@@ -332,7 +331,7 @@ static void test_cache_grow_full(void)
     size_t hashmap_bytes, cache_bytes;
     void *hashmap, *cache;
 
-    assert(lru_cache_init(&c, sizeof(char), 1, hash_to_self, my_compare, destroy) == 0);
+    assert(lru_cache_init(&c, sizeof(char), hash_to_self, my_compare, destroy) == 0);
 
     eviction = "";
     assert(lru_cache_set_nmemb(&c, 4, &hashmap_bytes, &cache_bytes) == 0);
@@ -387,7 +386,7 @@ static void test_cache_simple_flush(void)
     size_t hashmap_bytes, cache_bytes;
     void *hashmap, *cache;
 
-    assert(lru_cache_init(&c, sizeof(char), 1, hash_to_self, my_compare, destroy) == 0);
+    assert(lru_cache_init(&c, sizeof(char), hash_to_self, my_compare, destroy) == 0);
 
     eviction = "";
     assert(lru_cache_set_nmemb(&c, 16, &hashmap_bytes, &cache_bytes) == 0);
@@ -420,7 +419,7 @@ static void test_cache_flush_full_with_collisions(void)
     size_t hashmap_bytes, cache_bytes;
     void *hashmap, *cache;
 
-    assert(lru_cache_init(&c, sizeof(char), 1, hash_to_zero, my_compare, destroy) == 0);
+    assert(lru_cache_init(&c, sizeof(char), hash_to_zero, my_compare, destroy) == 0);
 
     eviction = "";
     assert(lru_cache_set_nmemb(&c, 4, &hashmap_bytes, &cache_bytes) == 0);
@@ -463,7 +462,7 @@ static void test_cache_set_nmemb_initial_multi(void)
     size_t hashmap_bytes, cache_bytes;
     void *hashmap, *cache;
 
-    assert(lru_cache_init(&c, sizeof(char), 1, hash_to_zero, my_compare, destroy) == 0);
+    assert(lru_cache_init(&c, sizeof(char), hash_to_zero, my_compare, destroy) == 0);
 
     assert(lru_cache_set_nmemb(&c, 4, &hashmap_bytes, &cache_bytes) == 0);
     assert(lru_cache_set_nmemb(&c, 2, &hashmap_bytes, &cache_bytes) == 0);
@@ -482,7 +481,7 @@ static void test_cache_set_nmemb_multi(void)
     size_t hashmap_bytes, cache_bytes;
     void *hashmap, *cache;
 
-    assert(lru_cache_init(&c, sizeof(char), 1, hash_to_zero, my_compare, destroy) == 0);
+    assert(lru_cache_init(&c, sizeof(char), hash_to_zero, my_compare, destroy) == 0);
 
     assert(lru_cache_set_nmemb(&c, 8, &hashmap_bytes, &cache_bytes) == 0);
 
