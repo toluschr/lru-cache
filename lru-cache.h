@@ -75,6 +75,8 @@ struct lru_cache {
 
     uint32_t lru; ///< Pointer to the least recently used entry.
     uint32_t mru; ///< Pointer to the most recently used entry.
+
+    uint32_t __unused;
 };
 
 bool lru_cache_is_full(
