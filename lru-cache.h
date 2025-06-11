@@ -84,6 +84,8 @@ bool lru_cache_is_full(
 
 int lru_cache_align(uint32_t size, uint32_t align, uint32_t *aligned_size_);
 
+int lru_cache_calc_sizes(size_t aligned_size, size_t nmemb, size_t *hashmap_bytes, size_t *cache_bytes);
+
 int lru_cache_init(
     struct lru_cache *s,
     uint32_t aligned_size,
