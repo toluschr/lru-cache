@@ -51,7 +51,7 @@ typedef int (*lru_cache_compare_t)(const void *a, const void *b);
  * This function generates a hash value for a given key, which is used to
  * determine the index in the hashmap.
  */
-typedef uint32_t (*lru_cache_hash_t)(const void *a);
+typedef uint32_t (*lru_cache_hash_t)(const void *a, uint32_t nmemb);
 
 /**
  * @struct lru_cache

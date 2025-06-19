@@ -269,7 +269,9 @@ int lru_cache_set_nmemb(
     size_t *cache_bytes)
 {
     int rv = 0;
-    uint32_t i, h;
+    uint32_t i;
+    uint32_t old_hash;
+    uint32_t new_hash;
     struct lru_cache_entry *e;
 
     rv = lru_cache_calc_sizes(s->size, nmemb, hashmap_bytes, cache_bytes);
@@ -280,14 +282,14 @@ int lru_cache_set_nmemb(
     if (nmemb < s->nmemb) {
         for (i = nmemb; i < s->nmemb; i++) {
             e = lru_cache_get_entry(s, i);
-            h = s->hash(e->key);
+            old_hash = s->hash(e->key, s->nmemb);
 
             if (e->clru != i && s->destroy) {
                 s->destroy(e->key, i);
             }
 
             lru_cache_pop(s, e);
-            lru_cache_rehash(s, i, e, h % s->nmemb, LRU_CACHE_ENTRY_NIL);
+            lru_cache_rehash(s, i, e, old_hash, LRU_CACHE_ENTRY_NIL);
         }
 
         assert(s->lru < nmemb);
@@ -296,8 +298,9 @@ int lru_cache_set_nmemb(
         for (i = s->mru; (e = lru_cache_get_entry(s, i)) && e->clru != i; i = e->lru) {
             assert(i < s->nmemb);
 
-            h = s->hash(e->key);
-            lru_cache_rehash(s, i, e, h % s->nmemb, h % nmemb);
+            old_hash = s->hash(e->key, s->nmemb);
+            new_hash = s->hash(e->key, nmemb);
+            lru_cache_rehash(s, i, e, old_hash, new_hash);
         }
 
         s->nmemb = nmemb;
@@ -309,7 +312,9 @@ int lru_cache_set_nmemb(
 
 int lru_cache_set_memory(struct lru_cache *s, void *hashmap, void *cache)
 {
-    uint32_t i, h;
+    uint32_t i;
+    uint32_t old_hash;
+    uint32_t new_hash;
     struct lru_cache_entry *e;
 
     size_t hashmap_bytes = s->try_nmemb * sizeof(*s->hashmap);
@@ -359,8 +364,9 @@ int lru_cache_set_memory(struct lru_cache *s, void *hashmap, void *cache)
         for (i = s->mru; (e = lru_cache_get_entry(s, i)) && e->clru != i; i = e->lru) {
             assert(i < s->nmemb && i < s->try_nmemb);
 
-            h = s->hash(e->key);
-            lru_cache_rehash(s, i, e, h % s->nmemb, h % s->try_nmemb);
+            old_hash = s->hash(e->key, s->nmemb);
+            new_hash = s->hash(e->key, s->try_nmemb);
+            lru_cache_rehash(s, i, e, old_hash, new_hash);
         }
 
         s->nmemb = s->try_nmemb;
@@ -381,7 +387,7 @@ struct lru_cache_entry *lru_cache_get_entry(struct lru_cache *s, uint32_t i)
 // @todo: Atomic access
 uint32_t lru_cache_get_or_put(struct lru_cache *s, const void *key, bool *put)
 {
-    uint32_t new_hash = s->hash(key);
+    uint32_t new_hash = s->hash(key, s->nmemb);
     uint32_t old_hash = new_hash;
     uint32_t i = s->hashmap[new_hash % s->nmemb];
     struct lru_cache_entry *e = NULL;
@@ -405,14 +411,14 @@ uint32_t lru_cache_get_or_put(struct lru_cache *s, const void *key, bool *put)
     *put = true;
     i = s->lru;
     e = lru_cache_get_entry(s, i);
-    old_hash = s->hash(e->key);
 
     if (e->clru != i && s->destroy) {
+        old_hash = s->hash(e->key, s->nmemb);
         s->destroy(e->key, i);
     }
 
     memcpy(e->key, key, s->size);
-    return lru_cache_update_entry(s, i, e, old_hash % s->nmemb, new_hash % s->nmemb);
+    return lru_cache_update_entry(s, i, e, old_hash, new_hash);
 }
 
 void lru_cache_flush(struct lru_cache *s)
@@ -433,16 +439,17 @@ void lru_cache_flush(struct lru_cache *s)
      *  + Stops early if there are unused entries, saving time
      *  - Traversal is not sequential in memory, which may reduce CPU cache efficiency
      */
-    uint32_t i, h;
+    uint32_t i;
+    uint32_t old_hash;
     struct lru_cache_entry *e;
 
     for (i = s->mru; (e = lru_cache_get_entry(s, i)) && e->clru != i; i = e->lru) {
-        h = s->hash(e->key);
+        old_hash = s->hash(e->key, s->nmemb);
 
         if (s->destroy) {
             s->destroy(e->key, i);
         }
 
-        lru_cache_rehash(s, i, e, h % s->nmemb, LRU_CACHE_ENTRY_NIL);
+        lru_cache_rehash(s, i, e, old_hash, LRU_CACHE_ENTRY_NIL);
     }
 }

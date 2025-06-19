@@ -22,14 +22,14 @@ static void destroy(void *key, uint32_t idx)
     assert(*(char *)key == *eviction++);
 }
 
-static uint32_t hash_to_zero(const void *a_)
+static uint32_t hash_to_zero(const void *a_, uint32_t m_)
 {
-    return (void)a_, 0u;
+    return (void)a_, (void)m_, 0u;
 }
 
-static uint32_t hash_to_self(const void *a_)
+static uint32_t hash_to_self(const void *a_, uint32_t m_)
 {
-    return *(char *)a_ - 'a';
+    return (*(char *)a_ - 'a') % m_;
 }
 
 static int my_compare(const void *a_, const void *b_)
