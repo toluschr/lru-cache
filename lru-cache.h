@@ -152,6 +152,8 @@ struct lru_cache_entry *lru_cache_get_entry(
     struct lru_cache *s,
     uint32_t i);
 
+uint32_t lru_cache_put(struct lru_cache *s, const void *key);
+
 /**
  * @brief Retrieves or inserts a cache entry based on the provided key.
  *

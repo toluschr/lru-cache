@@ -384,6 +384,22 @@ struct lru_cache_entry *lru_cache_get_entry(struct lru_cache *s, uint32_t i)
     return (i != LRU_CACHE_ENTRY_NIL) ? (struct lru_cache_entry *)(cache + offset) : NULL;
 }
 
+uint32_t lru_cache_put(struct lru_cache *s, const void *key)
+{
+    uint32_t i = s->lru;
+    uint32_t new_hash = s->hash(key, s->nmemb);
+    uint32_t old_hash = new_hash;
+    struct lru_cache_entry *e = lru_cache_get_entry(s, i);
+
+    if (e->clru != i && s->destroy) {
+        old_hash = s->hash(e->key, s->nmemb);
+        s->destroy(e->key, i);
+    }
+
+    memcpy(e->key, key, s->size);
+    return lru_cache_update_entry(s, i, e, old_hash, new_hash);
+}
+
 // @todo: Atomic access
 uint32_t lru_cache_get_or_put(struct lru_cache *s, const void *key, bool *put)
 {
@@ -398,7 +414,7 @@ uint32_t lru_cache_get_or_put(struct lru_cache *s, const void *key, bool *put)
                 *put = false;
             }
 
-            return lru_cache_update_entry(s, i, e, old_hash % s->nmemb, new_hash % s->nmemb);
+            return lru_cache_update_entry(s, i, e, old_hash, new_hash);
         }
 
         i = e->clru;
@@ -409,16 +425,7 @@ uint32_t lru_cache_get_or_put(struct lru_cache *s, const void *key, bool *put)
     }
 
     *put = true;
-    i = s->lru;
-    e = lru_cache_get_entry(s, i);
-
-    if (e->clru != i && s->destroy) {
-        old_hash = s->hash(e->key, s->nmemb);
-        s->destroy(e->key, i);
-    }
-
-    memcpy(e->key, key, s->size);
-    return lru_cache_update_entry(s, i, e, old_hash, new_hash);
+    return lru_cache_put(s, key);
 }
 
 void lru_cache_flush(struct lru_cache *s)
