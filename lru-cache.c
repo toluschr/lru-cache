@@ -187,16 +187,16 @@ int lru_cache_align(uint32_t size, uint32_t align, uint32_t *aligned_size_)
 {
     uint32_t aligned_size = (size + align - 1) & ~(align - 1);
 
-    if (size == 0 || align == 0 || align > sizeof(struct lru_cache_entry)) {
-        return EINVAL;
+    if (aligned_size_) {
+        *aligned_size_ = aligned_size;
     }
 
     if (aligned_size < size) {
         return EOVERFLOW;
     }
 
-    if (aligned_size_) {
-        *aligned_size_ = aligned_size;
+    if (size == 0 || align == 0 || align > sizeof(struct lru_cache_entry)) {
+        return EINVAL;
     }
 
     return 0;
