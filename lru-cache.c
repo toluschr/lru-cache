@@ -70,7 +70,7 @@ static void lru_cache_rehash(
     *index = i;
 }
 
-static uint32_t lru_cache_update_entry(
+uint32_t lru_cache_update_entry(
     struct lru_cache *s,
     uint32_t i,
     struct lru_cache_entry *e,

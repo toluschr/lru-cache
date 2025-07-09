@@ -82,6 +82,14 @@ struct lru_cache {
 bool lru_cache_is_full(
     struct lru_cache *s);
 
+
+uint32_t lru_cache_update_entry(
+    struct lru_cache *s,
+    uint32_t i,
+    struct lru_cache_entry *e,
+    uint32_t old_hash,
+    uint32_t new_hash);
+
 int lru_cache_align(uint32_t size, uint32_t align, uint32_t *aligned_size_);
 
 int lru_cache_calc_sizes(size_t aligned_size, size_t nmemb, size_t *hashmap_bytes, size_t *cache_bytes);
