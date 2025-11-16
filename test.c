@@ -164,7 +164,7 @@ static void test_cache_full_no_collisions(void)
 
 static void test_cache_invalid_alignment(void)
 {
-    assert(lru_cache_align(sizeof(char), 0, NULL) == EINVAL);
+    assert(lru_cache_align(sizeof(char), 0, NULL) == EOVERFLOW);
     assert(lru_cache_align(sizeof(char), sizeof(struct lru_cache_entry) + 1, NULL) == EINVAL);
     assert(lru_cache_align(sizeof(char), sizeof(struct lru_cache_entry), NULL) == 0);
 }
