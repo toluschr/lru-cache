@@ -40,6 +40,29 @@ static int my_compare(const void *a_, const void *b_)
     return (*a - *b);
 }
 
+static void test_cache_insert_order(void)
+{
+    bool put;
+    size_t hashmap_bytes, cache_bytes;
+    void *hashmap, *cache;
+
+    assert(lru_cache_init(&c, sizeof(char), hash_to_zero, my_compare, destroy) == 0);
+
+    eviction = "";
+    assert(lru_cache_set_nmemb(&c, 2, &hashmap_bytes, &cache_bytes) == 0);
+
+    hashmap = malloc(hashmap_bytes);
+    cache = malloc(cache_bytes);
+
+    assert(lru_cache_set_memory(&c, hashmap, cache) == 0);
+
+    assert(lru_cache_get_or_put(&c, "a", &put) == 0 && put);
+    assert(lru_cache_get_or_put(&c, "b", &put) == 1 && put);
+
+    free(hashmap);
+    free(cache);
+}
+
 static void test_cache_collision_first_in_local_chain(void)
 {
     bool put;
@@ -517,4 +540,5 @@ int main()
     TEST(test_cache_flush_full_with_collisions);
     TEST(test_cache_set_nmemb_initial_multi);
     TEST(test_cache_set_nmemb_multi);
+    TEST(test_cache_insert_order);
 }
