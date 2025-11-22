@@ -403,6 +403,10 @@ uint32_t lru_cache_put(struct lru_cache *s, const void *key)
 // @todo: Atomic access
 uint32_t lru_cache_get_or_put(struct lru_cache *s, const void *key, bool *put)
 {
+    if (s->nmemb == 0) {
+        return LRU_CACHE_ENTRY_NIL;
+    }
+
     uint32_t new_hash = s->hash(key, s->nmemb);
     uint32_t old_hash = new_hash;
     uint32_t i = s->hashmap[new_hash % s->nmemb];
