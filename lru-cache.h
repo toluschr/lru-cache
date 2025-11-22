@@ -7,6 +7,9 @@
 #include <stdbool.h>
 #include <sys/types.h>
 
+#define LRU_CACHE_ITERATE_MRU_TO_LRU(C, I, E) \
+    for ((I) = (C)->mru; (E = lru_cache_get_entry((C), (I))) && (E)->clru != (I); (I) = (E)->lru)
+
 #define LRU_CACHE_ENTRY_NIL UINT32_MAX
 
 /**
