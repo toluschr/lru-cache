@@ -204,6 +204,7 @@ int lru_cache_align(uint32_t size, uint32_t align, uint32_t *aligned_size_)
 
 int lru_cache_init(
     struct lru_cache *s,
+    uint32_t key_size,
     uint32_t aligned_size,
     lru_cache_hash_t hash,
     lru_cache_compare_t compare,
@@ -224,6 +225,7 @@ int lru_cache_init(
     s->compare = compare;
     s->hash = hash;
 
+    s->key_size = key_size;
     s->size = aligned_size;
     s->nmemb = 0;
 
@@ -396,7 +398,7 @@ uint32_t lru_cache_put(struct lru_cache *s, const void *key)
         s->destroy(e->key, i);
     }
 
-    memcpy(e->key, key, s->size);
+    memcpy(e->key, key, s->key_size);
     return lru_cache_update_entry(s, i, e, old_hash, new_hash);
 }
 

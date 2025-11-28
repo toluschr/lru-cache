@@ -72,14 +72,13 @@ struct lru_cache {
     lru_cache_compare_t compare; ///< Comparison function for cache keys.
     lru_cache_destroy_t destroy; ///< Function to destroy cache entries.
 
+    uint32_t key_size;
     uint32_t size; ///< Size of each cache entry.
     uint32_t nmemb; ///< Number of cache entries.
     uint32_t try_nmemb; //< Size requested through lru_cache_set_nmemb.
 
     uint32_t lru; ///< Pointer to the least recently used entry.
     uint32_t mru; ///< Pointer to the most recently used entry.
-
-    uint32_t __unused;
 };
 
 bool lru_cache_is_full(
@@ -99,6 +98,7 @@ int lru_cache_calc_sizes(size_t aligned_size, size_t nmemb, size_t *hashmap_byte
 
 int lru_cache_init(
     struct lru_cache *s,
+    uint32_t key_size,
     uint32_t aligned_size,
     lru_cache_hash_t hash,
     lru_cache_compare_t compare,
