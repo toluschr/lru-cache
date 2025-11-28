@@ -7,7 +7,7 @@
 #include <memory.h>
 #include <errno.h>
 
-static void lru_cache_pop(struct lru_cache *s, struct lru_cache_entry *e)
+static void remove_from_global_chain(struct lru_cache *s, struct lru_cache_entry *e)
 {
     if (e->lru != LRU_CACHE_ENTRY_NIL) {
         lru_cache_get_entry(s, e->lru)->mru = e->mru;
@@ -25,7 +25,7 @@ static void lru_cache_pop(struct lru_cache *s, struct lru_cache_entry *e)
     e->lru = LRU_CACHE_ENTRY_NIL;
 }
 
-static void lru_cache_rehash(
+static void update_local_chain(
     struct lru_cache *s,
     uint32_t i,
     struct lru_cache_entry *e,
@@ -79,7 +79,7 @@ uint32_t lru_cache_update_entry(
 {
     // Make current entry most recently used in the global chain if not already
     if (s->mru != i) {
-        lru_cache_pop(s, e);
+        remove_from_global_chain(s, e);
         lru_cache_get_entry(s, s->mru)->mru = i;
 
         e->lru = s->mru;
@@ -88,7 +88,7 @@ uint32_t lru_cache_update_entry(
         e->mru = LRU_CACHE_ENTRY_NIL;
     }
 
-    lru_cache_rehash(s, i, e, old_hash, new_hash);
+    update_local_chain(s, i, e, old_hash, new_hash);
 
     assert((e->clru == LRU_CACHE_ENTRY_NIL) || (lru_cache_get_entry(s, e->clru)->cmru == i));
     assert((e->cmru == LRU_CACHE_ENTRY_NIL) || (lru_cache_get_entry(s, e->cmru)->clru == i));
@@ -290,8 +290,8 @@ int lru_cache_set_nmemb(
                 s->destroy(e->key, i);
             }
 
-            lru_cache_pop(s, e);
-            lru_cache_rehash(s, i, e, old_hash, LRU_CACHE_ENTRY_NIL);
+            remove_from_global_chain(s, e);
+            update_local_chain(s, i, e, old_hash, LRU_CACHE_ENTRY_NIL);
         }
 
         assert(s->lru < nmemb);
@@ -302,7 +302,7 @@ int lru_cache_set_nmemb(
 
             old_hash = s->hash(e->key, s->nmemb);
             new_hash = s->hash(e->key, nmemb);
-            lru_cache_rehash(s, i, e, old_hash, new_hash);
+            update_local_chain(s, i, e, old_hash, new_hash);
         }
 
         s->nmemb = nmemb;
@@ -368,7 +368,7 @@ int lru_cache_set_memory(struct lru_cache *s, void *hashmap, void *cache)
 
             old_hash = s->hash(e->key, s->nmemb);
             new_hash = s->hash(e->key, s->try_nmemb);
-            lru_cache_rehash(s, i, e, old_hash, new_hash);
+            update_local_chain(s, i, e, old_hash, new_hash);
         }
 
         s->nmemb = s->try_nmemb;
@@ -463,6 +463,6 @@ void lru_cache_flush(struct lru_cache *s)
             s->destroy(e->key, i);
         }
 
-        lru_cache_rehash(s, i, e, old_hash, LRU_CACHE_ENTRY_NIL);
+        update_local_chain(s, i, e, old_hash, LRU_CACHE_ENTRY_NIL);
     }
 }
