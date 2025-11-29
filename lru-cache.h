@@ -209,8 +209,4 @@ uint32_t lru_cache_get_or_put(
 void lru_cache_flush(
     struct lru_cache *s);
 
-void lru_cache_print(
-    struct lru_cache *s,
-    FILE *file);
-
 #endif // LRU_CACHE_H_
