@@ -72,7 +72,10 @@ struct lru_cache {
     lru_cache_compare_t compare; ///< Comparison function for cache keys.
     lru_cache_destroy_t destroy; ///< Function to destroy cache entries.
 
-    uint32_t key_size;
+    uint16_t psel;
+    uint8_t bip_probability;
+    uint8_t leader_set_size;
+
     uint32_t size; ///< Size of each cache entry.
     uint32_t nmemb; ///< Number of cache entries.
     uint32_t try_nmemb; //< Size requested through lru_cache_set_nmemb.
@@ -98,7 +101,6 @@ int lru_cache_calc_sizes(size_t aligned_size, size_t nmemb, size_t *hashmap_byte
 
 int lru_cache_init(
     struct lru_cache *s,
-    uint32_t key_size,
     uint32_t aligned_size,
     lru_cache_hash_t hash,
     lru_cache_compare_t compare,

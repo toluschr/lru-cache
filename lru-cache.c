@@ -204,7 +204,6 @@ int lru_cache_align(uint32_t size, uint32_t align, uint32_t *aligned_size_)
 
 int lru_cache_init(
     struct lru_cache *s,
-    uint32_t key_size,
     uint32_t aligned_size,
     lru_cache_hash_t hash,
     lru_cache_compare_t compare,
@@ -225,7 +224,6 @@ int lru_cache_init(
     s->compare = compare;
     s->hash = hash;
 
-    s->key_size = key_size;
     s->size = aligned_size;
     s->nmemb = 0;
 
@@ -388,6 +386,7 @@ struct lru_cache_entry *lru_cache_get_entry(struct lru_cache *s, uint32_t i)
 
 uint32_t lru_cache_put(struct lru_cache *s, const void *key)
 {
+    // 11. Cache miss -- determine insertion mode
     uint32_t i = s->lru;
     uint32_t new_hash = s->hash(key, s->nmemb);
     uint32_t old_hash = new_hash;
@@ -398,7 +397,7 @@ uint32_t lru_cache_put(struct lru_cache *s, const void *key)
         s->destroy(e->key, i);
     }
 
-    memcpy(e->key, key, s->key_size);
+    memcpy(e->key, key, s->size);
     return lru_cache_update_entry(s, i, e, old_hash, new_hash);
 }
 
@@ -409,17 +408,20 @@ uint32_t lru_cache_get_or_put(struct lru_cache *s, const void *key, bool *put)
         return LRU_CACHE_ENTRY_NIL;
     }
 
+    // 3. Extract Components
     uint32_t new_hash = s->hash(key, s->nmemb);
     uint32_t old_hash = new_hash;
-    uint32_t i = s->hashmap[new_hash % s->nmemb];
+    uint32_t i = s->hashmap[new_hash];
     struct lru_cache_entry *e = NULL;
 
+    // 4. Check for cache hit
     while ((e = lru_cache_get_entry(s, i))) {
         if (s->compare(e->key, key) == 0) {
             if (put) {
                 *put = false;
             }
 
+            // 8. Protomote to LRU
             return lru_cache_update_entry(s, i, e, old_hash, new_hash);
         }
 
