@@ -1,6 +1,9 @@
 CC := gcc
 CFLAGS := -O3 -Wall -Wextra -Werror -pedantic -std=c11 -D_XOPEN_SOURCE=700
 
+CFLAGS += -fsanitize=address
+LDFLAGS += -fsanitize=address
+
 .PHONY: all
 all: lru-cache lru-cache.o
 
@@ -9,7 +12,7 @@ clean:
 	-rm -f lru-cache lru-cache.o test.o
 
 lru-cache: lru-cache.o test.o
-	$(CC) $(CFLAGS) $^ -o $@
+	$(CC) $(LDFLAGS) $^ -o $@
 
 test.o: test.c lru-cache.h Makefile
 	$(CC) $(CFLAGS) $< -c -o $@

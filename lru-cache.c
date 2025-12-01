@@ -388,12 +388,11 @@ uint32_t lru_cache_put(struct lru_cache *s, const void *key)
 {
     // 11. Cache miss -- determine insertion mode
     uint32_t i = s->lru;
-    uint32_t new_hash = s->hash(key, s->nmemb);
-    uint32_t old_hash = new_hash;
     struct lru_cache_entry *e = lru_cache_get_entry(s, i);
+    uint32_t new_hash = s->hash(key, s->nmemb);
+    uint32_t old_hash = s->hash(e->key, s->nmemb);
 
     if (e->clru != i && s->destroy) {
-        old_hash = s->hash(e->key, s->nmemb);
         s->destroy(e->key, i);
     }
 
