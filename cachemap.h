@@ -1,11 +1,28 @@
-#ifndef CACHE_MAP_H_
-#define CACHE_MAP_H_
+#ifndef CACHEMAP_H_
+#define CACHEMAP_H_
 
 #include <stdio.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <sys/types.h>
+
+#define CM_IS_VALID(cm, i) ((i != CM_NIL) && (cm_entry_ptr(cm, i)->clru != i))
+#define CM_IS_INVALID(cm, i) ((i != CM_NIL) && (cm_entry_ptr(cm, i)->clru == i))
+
+#define CM_FIRST_PIN(cm) ((cm->lru != CM_NIL) ? cm_entry_ptr(cm, cm->mru)->mru : cm->mru)
+#define CM_FIRST_VALID(cm) ((cm->lru != CM_NIL) && (CM_IS_VALID(cm, cm->mru)) ? cm->mru : CM_NIL)
+#define CM_FIRST_INVALID(cm) (((cm->lru != CM_NIL) && (CM_IS_INVALID(cm, cm->lru))) ? cm->lru : CM_NIL)
+
+#define CM_ITER_PINNED_ENTRIES(cm, i, e) \
+    for (i = CM_FIRST_PIN(cm); (e = cm_entry_ptr(cm, i)); i = e->mru)
+
+#define CM_ITER_VALID_ENTRIES(cm, i, e) \
+    for (i = CM_FIRST_VALID(cm); (e = cm_entry_ptr(cm, i)) && CM_IS_VALID(cm, i); i = e->lru)
+
+#define CM_ITER_INVALID_ENTRIES(cm, i, e) \
+    for (i = CM_FIRST_INVALID(cm); (e = cm_entry_ptr(cm, i)) && CM_IS_INVALID(cm, i); i = e->mru)
+
 
 #define CM_FNV1A64_IV 0xcbf29ce484222325ull
 #define CM_DJB2_IV 5381ull
@@ -26,6 +43,9 @@ typedef void cm_destroy(void *a, uint32_t index);
 typedef int cm_compare(const void *a, const void *b);
 typedef uint32_t cm_hash(const void *a, uint32_t nmemb);
 
+/*
+ * Invariants: 
+ */
 typedef struct {
     uint32_t *hashmap;
     void *cache;
@@ -34,9 +54,7 @@ typedef struct {
     cm_compare *compare;
     cm_destroy *destroy;
 
-    uint16_t psel_ctr;
-    uint8_t psel_bit;
-    uint8_t leader_set_size;
+    uint32_t unused;
 
     uint32_t size;
     uint32_t nmemb;
@@ -56,6 +74,8 @@ cm_entry *cm_entry_ptr(cm_cache *cm, uint32_t slot);
 
 void cm_move_chain(cm_cache *cm, uint32_t slot, uint32_t old_hash, uint32_t new_hash);
 
+// @future
+void cm_make_pin(cm_cache *cm, uint32_t slot);
 void cm_make_lru(cm_cache *cm, uint32_t slot);
 void cm_make_mru(cm_cache *cm, uint32_t slot);
 
@@ -69,4 +89,4 @@ bool cm_is_full(cm_cache *cm);
 uint32_t cm_put_key(cm_cache *cm, const void *key);
 uint32_t cm_get_or_put_key(cm_cache *cm, const void *key, bool *put);
 
-#endif // CACHE_MAP_H_
+#endif // CACHEMAP_H_

@@ -1,5 +1,5 @@
 #define _DEFAULT_SOURCE
-#include "lru-cache.h"
+#include "cachemap.h"
 #include <stdlib.h>
 #include <unistd.h>
 
@@ -113,7 +113,7 @@ mixed_access(uint32_t hot)
     for (uint32_t j = 0; j < 100000; j++) {
         uint32_t el;
         if (entropy() % 100 < hot) {
-            el = (entropy() % hot_size);
+            el = 0 + (entropy() % hot_size);
         } else {
             el = hot_size + (entropy() % cold_size);
         }
@@ -137,6 +137,17 @@ zipf_access(uint32_t alpha)
 int
 main()
 {
+    // int a = 0;
+    // int b = 0;
+    // int c = 0;
+    // for (int i = 0; i < 4096; i++) {
+    //     int r = 
+    //     if (r == 0) a++;
+    //     else if (r == 1) b++;
+    //     else c++;
+    // }
+    // printf("%g, %g, %g\n", ((double)a)/(a+b+c), ((double)b)/(a+b+c), ((double)c)/(a+b+c));
+
     printf("                    LRU  FIFO Adaptive-LRU\n");
     printf("Streaming 2xC     %5.1f  \n", cyclic_access(5, 2*C));
     printf("Large Loop 1.25xC %5.1f  \n", cyclic_access(10, 1.25*C));

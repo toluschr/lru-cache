@@ -1,5 +1,6 @@
-#include "lru-cache.h"
+#include "cachemap.h"
 
+#undef NDEBUG
 #include <assert.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -14,6 +15,8 @@
 
 static const char *eviction = "";
 static cm_cache c;
+static cm_hash hash_to_zero;
+static cm_hash hash_to_self;
 
 static void destroy(void *key, uint32_t idx)
 {
@@ -530,6 +533,95 @@ static void test_cache_set_size_multi(void)
     free(cache);
 }
 
+static void test_cache_pin_empty(void)
+{
+    size_t hashmap_bytes, cache_bytes;
+    void *hashmap, *cache;
+
+    eviction = "";
+    assert(cm_init(&c, sizeof(char), hash_to_zero, my_compare, &destroy) == 0);
+
+    assert(cm_set_size(&c, 2, &hashmap_bytes, &cache_bytes) == 0);
+
+    hashmap = malloc(hashmap_bytes);
+    cache = malloc(cache_bytes);
+
+    assert(cm_set_data(&c, hashmap, cache) == 0);
+
+    uint32_t slot_a = cm_put_key(&c, "a");
+    assert(slot_a != CM_NIL);
+    cm_make_pin(&c, slot_a);
+
+    uint32_t slot_b = cm_put_key(&c, "b");
+    assert(slot_b != CM_NIL);
+    cm_make_pin(&c, slot_b);
+
+    assert(c.lru == CM_NIL);
+    assert(c.mru == slot_b);
+    assert(cm_entry_ptr(&c, c.mru)->mru == slot_a);
+
+    uint32_t slot_c = cm_put_key(&c, "c");
+    assert(slot_c == CM_NIL);
+    assert(c.mru != CM_NIL);
+
+    assert(c.lru == CM_NIL);
+    assert(c.mru == slot_b);
+
+    eviction = "b";
+    cm_make_mru(&c, slot_b);
+    slot_c = cm_put_key(&c, "c");
+    assert(slot_c == slot_b);
+    assert(slot_c != CM_NIL);
+    assert(c.lru == slot_c);
+    assert(c.mru == slot_c);
+    assert(cm_entry_ptr(&c, slot_c)->mru == slot_a);
+    assert(*eviction == '\0');
+
+    cm_make_pin(&c, slot_c);
+
+    assert(c.lru == CM_NIL);
+    assert(c.mru == 1);
+
+    cm_flush(&c);
+
+    assert(cm_set_size(&c, 4, &hashmap_bytes, &cache_bytes) == 0);
+
+    hashmap = realloc(hashmap, hashmap_bytes);
+    cache = realloc(cache, cache_bytes);
+
+    assert(cm_set_data(&c, hashmap, cache) == 0);
+
+    assert(c.lru == 2);
+    assert(cm_entry_ptr(&c, c.lru)->lru == CM_NIL);
+    assert(cm_entry_ptr(&c, c.lru)->mru == 3);
+    assert(c.mru == 3);
+    assert(cm_entry_ptr(&c, c.mru)->mru == 1);
+    assert(cm_entry_ptr(&c, c.mru)->lru == 2);
+
+    assert(cm_entry_ptr(&c, c.mru)->mru == 1);
+
+    assert(cm_entry_ptr(&c, cm_entry_ptr(&c, c.mru)->mru)->lru == 3);
+    assert(cm_entry_ptr(&c, cm_entry_ptr(&c, c.mru)->mru)->mru == 0);
+    assert(cm_entry_ptr(&c, cm_entry_ptr(&c, cm_entry_ptr(&c, c.mru)->mru)->mru)->lru == 1);
+    assert(cm_entry_ptr(&c, cm_entry_ptr(&c, cm_entry_ptr(&c, c.mru)->mru)->mru)->mru == CM_NIL);
+
+    assert(cm_entry_ptr(&c, cm_entry_ptr(&c, c.mru)->mru)->lru == c.mru);
+    assert(cm_entry_ptr(&c, cm_entry_ptr(&c, c.mru)->mru)->mru == 0);
+
+    assert(cm_set_size(&c, 2, &hashmap_bytes, &cache_bytes) == 0);
+
+    hashmap = realloc(hashmap, hashmap_bytes);
+    cache = realloc(cache, cache_bytes);
+
+    assert(cm_set_data(&c, hashmap, cache) == 0);
+
+    assert(c.lru == CM_NIL);
+    assert(c.mru == 1);
+
+    free(hashmap);
+    free(cache);
+}
+
 int main()
 {
     TEST(test_cache_collision_first_in_local_chain);
@@ -545,4 +637,5 @@ int main()
     TEST(test_cache_set_size_initial_multi);
     TEST(test_cache_set_size_multi);
     TEST(test_cache_insert_order);
+    TEST(test_cache_pin_empty);
 }

@@ -10,14 +10,14 @@ CFLAGS += -fsanitize=address
 LDFLAGS += -fsanitize=address
 
 .PHONY: all
-all: $(BIN) lru-cache.o
+all: $(BIN) cachemap.o
 
 .PHONY: clean
 clean:
-	-rm -f $(BIN) lru-cache.o test.o benchmark.o
+	-rm -f $(BIN) cachemap.o test.o benchmark.o
 
-$(BIN): %: %.o lru-cache.o
+$(BIN): %: %.o cachemap.o
 	$(CC) $(LDFLAGS) $^ -o $@
 
-%.o: %.c lru-cache.h Makefile
+%.o: %.c cachemap.h Makefile
 	$(CC) $(CFLAGS) $< -c -o $@
