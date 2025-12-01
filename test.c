@@ -497,6 +497,9 @@ static void test_cache_set_nmemb_initial_multi(void)
     cache = malloc(cache_bytes);
 
     assert(lru_cache_set_memory(&c, hashmap, cache) == 0);
+
+    free(hashmap);
+    free(cache);
 }
 
 static void test_cache_set_nmemb_multi(void)
@@ -524,6 +527,9 @@ static void test_cache_set_nmemb_multi(void)
     cache = realloc(cache, cache_bytes);
 
     assert(lru_cache_set_memory(&c, hashmap, cache) == 0);
+
+    free(hashmap);
+    free(cache);
 }
 
 int main()
