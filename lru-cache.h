@@ -1,5 +1,5 @@
-#ifndef LRU_CACHE_H_
-#define LRU_CACHE_H_
+#ifndef CACHE_MAP_H_
+#define CACHE_MAP_H_
 
 #include <stdio.h>
 #include <stddef.h>
@@ -7,206 +7,66 @@
 #include <stdbool.h>
 #include <sys/types.h>
 
-#define LRU_CACHE_ITERATE_MRU_TO_LRU(C, I, E) \
-    for ((I) = (C)->mru; (E = lru_cache_get_entry((C), (I))) && (E)->clru != (I); (I) = (E)->lru)
+#define CM_FNV1A64_IV 0xcbf29ce484222325ull
+#define CM_DJB2_IV 5381ull
 
-#define LRU_CACHE_ENTRY_NIL UINT32_MAX
+#define CM_NIL UINT32_MAX
 
-/**
- * @struct lru_cache_entry
- * @brief Structure representing an entry in the LRU cache.
- *
- * Each cache entry contains links to manage its position in both global
- * and local LRU (Least Recently Used) and MRU (Most Recently Used) chains,
- * as well as the actual key stored in the entry.
- */
-struct lru_cache_entry {
-    uint32_t lru; ///< Pointer to the less recently used entry in the global chain.
-    uint32_t mru; ///< Pointer to the most recently used entry in the global chain.
-    uint32_t clru; ///< Pointer to the less recently used entry in the local chain.
-    uint32_t cmru; ///< Pointer to the most recently used entry in the local chain.
-    char key[]; ///< Variable-sized key storage.
-};
+#define CM_IS_ENTRY_EMPTY
 
-/**
- * Function pointer type for destroying cache entry data.
- *
- * This function is called when an entry is being evicted from the cache.
- * It provides the user with the entry index for proper resource management.
- *
- * @param a Pointer to the key or data to be destroyed.
- * @param index The index of the entry being destroyed in the cache.
- */
-typedef void (*lru_cache_destroy_t)(void *a, uint32_t index);
+typedef struct {
+    uint32_t lru;
+    uint32_t mru;
+    uint32_t clru;
+    uint32_t cmru;
+    char key[];
+} cm_entry;
 
-/**
- * @typedef lru_cache_compare_t
- * @brief Function pointer type for comparing keys.
- *
- * This function determines the equality of two keys for cache lookups.
- */
-typedef int (*lru_cache_compare_t)(const void *a, const void *b);
+typedef void cm_destroy(void *a, uint32_t index);
+typedef int cm_compare(const void *a, const void *b);
+typedef uint32_t cm_hash(const void *a, uint32_t nmemb);
 
-/**
- * @typedef lru_cache_hash_t
- * @brief Function pointer type for hashing keys.
- *
- * This function generates a hash value for a given key, which is used to
- * determine the index in the hashmap.
- */
-typedef uint32_t (*lru_cache_hash_t)(const void *a, uint32_t nmemb);
+typedef struct {
+    uint32_t *hashmap;
+    void *cache;
 
-/**
- * @struct lru_cache
- * @brief Structure representing the LRU cache itself.
- *
- * This structure holds the configuration of the cache, including the size
- * of each entry, the number of entries, pointers for managing the LRU/MRU
- * ordering, and references to the hashmap and cache memory.
- */
-struct lru_cache {
-    uint32_t *hashmap; ///< Hashmap for quick access to cache entries.
-    void *cache; ///< Pointer to the cache memory.
+    cm_hash *hash;
+    cm_compare *compare;
+    cm_destroy *destroy;
 
-    lru_cache_hash_t hash; ///< Hash function for the cache keys.
-    lru_cache_compare_t compare; ///< Comparison function for cache keys.
-    lru_cache_destroy_t destroy; ///< Function to destroy cache entries.
-
-    uint16_t psel;
-    uint8_t bip_probability;
+    uint16_t psel_ctr;
+    uint8_t psel_bit;
     uint8_t leader_set_size;
 
-    uint32_t size; ///< Size of each cache entry.
-    uint32_t nmemb; ///< Number of cache entries.
-    uint32_t try_nmemb; //< Size requested through lru_cache_set_nmemb.
+    uint32_t size;
+    uint32_t nmemb;
+    uint32_t try_nmemb;
 
-    uint32_t lru; ///< Pointer to the least recently used entry.
-    uint32_t mru; ///< Pointer to the most recently used entry.
-};
+    uint32_t lru;
+    uint32_t mru;
+} cm_cache;
 
-bool lru_cache_is_full(
-    struct lru_cache *s);
+uint64_t cm_fnv1a64_step(uint64_t state, const void *data, size_t size);
+uint64_t cm_djb2_step(uint64_t state, const void *data, size_t size);
 
+int cm_align(uint32_t size, uint32_t align, uint32_t *size_a_);
+int cm_required_bytes(uint32_t size_a, uint32_t nmemb, size_t *hashmap_bytes, size_t *cache_bytes);
 
-uint32_t lru_cache_update_entry(
-    struct lru_cache *s,
-    uint32_t i,
-    struct lru_cache_entry *e,
-    uint32_t old_hash,
-    uint32_t new_hash);
+cm_entry *cm_entry_ptr(cm_cache *cm, uint32_t slot);
 
-int lru_cache_align(uint32_t size, uint32_t align, uint32_t *aligned_size_);
+void cm_move_chain(cm_cache *cm, uint32_t slot, uint32_t old_hash, uint32_t new_hash);
 
-int lru_cache_calc_sizes(size_t aligned_size, size_t nmemb, size_t *hashmap_bytes, size_t *cache_bytes);
+void cm_make_lru(cm_cache *cm, uint32_t slot);
+void cm_make_mru(cm_cache *cm, uint32_t slot);
 
-int lru_cache_init(
-    struct lru_cache *s,
-    uint32_t aligned_size,
-    lru_cache_hash_t hash,
-    lru_cache_compare_t compare,
-    lru_cache_destroy_t destroy);
+int cm_init(cm_cache *cm, uint32_t size_a, cm_hash *hash, cm_compare *compare, cm_destroy *destroy);
+int cm_set_size(cm_cache *cm, uint32_t nmemb, size_t *hashmap_bytes, size_t *cache_bytes);
+int cm_set_data(cm_cache *cm, void *hashmap, void *cache);
 
-/**
- * @brief Sets the number of cache entries and calculates required memory sizes.
- *
- * This function configures the number of entries (`nmemb`) the cache will handle. It also calculates
- * the required memory sizes for both the hashmap and the cache. Memory for these must be allocated
- * separately and provided through `lru_cache_set_memory()`.
- *
- * If any parameter is invalid, such as `nmemb` being zero, this function returns an error without
- * modifying the cache object.
- *
- * @param s Pointer to the `lru_cache` structure to be modified.
- * @param nmemb Number of cache entries. Must be greater than 0.
- * @param hashmap_bytes Pointer to store the required bytes for the hashmap memory.
- * @param cache_bytes Pointer to store the required bytes for the cache memory.
- * @return 0 on success, or a positive error number:
- *         - EINVAL: Invalid `nmemb` value.
- *         - EOVERFLOW: Overflow detected while calculating memory requirements.
- */
-int lru_cache_set_nmemb(
-    struct lru_cache *s,
-    uint32_t nmemb,
-    size_t *hashmap_bytes,
-    size_t *cache_bytes);
+void cm_flush(cm_cache *cm);
+bool cm_is_full(cm_cache *cm);
 
-/**
- * @brief Initializes the memory for the cache using external allocation.
- *
- * This function links the externally allocated memory for both the hashmap and cache storage
- * to the LRU cache structure. It ensures that the cache is set up correctly by associating
- * the hash, comparison, and destroy functions for key management. The cache starts in an empty state,
- * ready to be populated.
- *
- * The memory size for the hashmap and cache must match the sizes computed by `lru_cache_set_nmemb()`.
- * If any parameter is invalid, the function returns an error and does not modify the cache.
- *
- * @param s Pointer to the `lru_cache` structure to be modified.
- * @param hashmap Pointer to the allocated hashmap memory.
- * @param cache Pointer to the allocated cache memory.
- * @return 0 on success, or a positive error number:
- *         - EINVAL: Invalid pointers or unaligned memory.
- */
-int lru_cache_set_memory(
-    struct lru_cache *s,
-    void *hashmap,
-    void *cache);
+uint32_t cm_put_key(cm_cache *cm, const void *key);
+uint32_t cm_get_or_put_key(cm_cache *cm, const void *key, bool *put);
 
-/**
- * @brief Retrieves a pointer to a cache entry at a given index.
- *
- * If the index is invalid (equal to LRU_CACHE_ENTRY_NIL), the function returns NULL.
- *
- * @param s Pointer to the lru_cache structure.
- * @param i Index of the desired cache entry; should be a valid index within the cache.
- * @return Pointer to the lru_cache_entry if the index is valid, or NULL if invalid.
- */
-struct lru_cache_entry *lru_cache_get_entry(
-    struct lru_cache *s,
-    uint32_t i);
-
-uint32_t lru_cache_put(struct lru_cache *s, const void *key);
-
-/**
- * @brief Retrieves or inserts a cache entry based on the provided key.
- *
- * This function attempts to retrieve a cache entry based on the given key. If the key is found,
- * it updates the entry's position in the cache to make it the most recently used (MRU) and
- * returns the entry's index. If the key is not found and the `put` parameter is non-NULL, a new
- * entry is created and marked as MRU. If the cache is full, the least recently used (LRU) entry
- * is evicted. The `destroy` function will be called for the evicted entry if provided.
- *
- * If the `put` parameter is NULL, the function behaves as a "get" operation and does not modify
- * the cache. It will return the index of the found entry or `LRU_CACHE_ENTRY_NIL` if the key is
- * not found.
- *
- * The `put` boolean pointer, if non-NULL, will indicate whether a new entry was inserted (`true`)
- * or the key was found (`false`).
- *
- * @remark If an error occurs, the cache object remains unchanged.
- *
- * @param s Pointer to the lru_cache structure. Must not be NULL.
- * @param key Pointer to the key to be searched for or inserted; must not be NULL.
- * @param put Pointer to a boolean that will be set to `true` if a new entry was inserted, or
- *            `false` if the key was found. If NULL, the function only performs a lookup.
- * @return The index of the found or newly inserted cache entry. If the key is not found and `put`
- *         is NULL, `LRU_CACHE_ENTRY_NIL` is returned.
- */
-uint32_t lru_cache_get_or_put(
-    struct lru_cache *s,
-    const void *key,
-    bool *put);
-
-/**
- * @brief Flushes the entire cache, destroying all entries.
- *
- * This function iterates through all entries in the cache and calls the destroy
- * function for each entry if it is provided. After clearing the cache, it resets
- * the global LRU and MRU pointers, preparing the cache for future use.
- *
- * @param s Pointer to the lru_cache structure.
- */
-void lru_cache_flush(
-    struct lru_cache *s);
-
-#endif // LRU_CACHE_H_
+#endif // CACHE_MAP_H_

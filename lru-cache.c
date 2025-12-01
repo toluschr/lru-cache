@@ -7,160 +7,93 @@
 #include <memory.h>
 #include <errno.h>
 
-static void remove_from_global_chain(struct lru_cache *s, struct lru_cache_entry *e)
+static void
+unlink(cm_cache *cm, cm_entry *e)
 {
-    if (e->lru != LRU_CACHE_ENTRY_NIL) {
-        lru_cache_get_entry(s, e->lru)->mru = e->mru;
+    if (e->lru != CM_NIL) {
+        cm_entry_ptr(cm, e->lru)->mru = e->mru;
     } else {
-        s->lru = e->mru;
+        cm->lru = e->mru;
     }
 
-    if (e->mru != LRU_CACHE_ENTRY_NIL) {
-        lru_cache_get_entry(s, e->mru)->lru = e->lru;
+    if (e->mru != CM_NIL) {
+        cm_entry_ptr(cm, e->mru)->lru = e->lru;
     } else {
-        s->mru = e->lru;
+        cm->mru = e->lru;
     }
 
-    e->mru = LRU_CACHE_ENTRY_NIL;
-    e->lru = LRU_CACHE_ENTRY_NIL;
+    e->mru = CM_NIL;
+    e->lru = CM_NIL;
 }
 
-static void update_local_chain(
-    struct lru_cache *s,
-    uint32_t i,
-    struct lru_cache_entry *e,
-    uint32_t old_hash,
-    uint32_t new_hash)
+uint64_t
+cm_fnv1a64_step(uint64_t state, const void *data, size_t size)
 {
-    uint32_t *index;
-
-    if (new_hash == LRU_CACHE_ENTRY_NIL) {
-        index = &i;
-    } else if (s->hashmap[new_hash] != i) {
-        index = &s->hashmap[new_hash];
-    } else {
-        return;
-    }
-
-    if (e->clru != LRU_CACHE_ENTRY_NIL) {
-        lru_cache_get_entry(s, e->clru)->cmru = e->cmru;
-    } else {
-        // no lru pointer in collision chain
-    }
-
-    if (e->cmru != LRU_CACHE_ENTRY_NIL) {
-        lru_cache_get_entry(s, e->cmru)->clru = e->clru;
-    } else if (e->clru != i) {
-        s->hashmap[old_hash] = e->clru;
-    }
-
-    // If removal requested, "*index == i" => no longer in any chain.
-    e->clru = *index;
-
-    // If relocation requested, "s->hashmap[new_hash]->cmru = i" => first element in new chain.
-    if (e->clru != LRU_CACHE_ENTRY_NIL) {
-        lru_cache_get_entry(s, e->clru)->cmru = i;
-    }
-
-    // Element is the most used in both cases
-    e->cmru = LRU_CACHE_ENTRY_NIL;
-
-    // If relocation requested: "s->hashmap[new_hash] = i" => first element in new chain.
-    // If removal requested: "i = i" => NOP
-    *index = i;
+    const unsigned char *d = (const unsigned char *)data;
+    while (size--) state = (state ^ *d++) * 0x00000100000001b3ull;
+    return state;
 }
 
-uint32_t lru_cache_update_entry(
-    struct lru_cache *s,
-    uint32_t i,
-    struct lru_cache_entry *e,
-    uint32_t old_hash,
-    uint32_t new_hash)
+uint64_t
+cm_djb2_step(uint64_t state, const void *data, size_t size)
 {
-    // Make current entry most recently used in the global chain if not already
-    if (s->mru != i) {
-        remove_from_global_chain(s, e);
-        lru_cache_get_entry(s, s->mru)->mru = i;
-
-        e->lru = s->mru;
-        s->mru = i;
-
-        e->mru = LRU_CACHE_ENTRY_NIL;
-    }
-
-    update_local_chain(s, i, e, old_hash, new_hash);
-
-    assert((e->clru == LRU_CACHE_ENTRY_NIL) || (lru_cache_get_entry(s, e->clru)->cmru == i));
-    assert((e->cmru == LRU_CACHE_ENTRY_NIL) || (lru_cache_get_entry(s, e->cmru)->clru == i));
-
-    assert((e->lru == LRU_CACHE_ENTRY_NIL) || (lru_cache_get_entry(s, e->lru)->mru == i));
-    assert((e->mru == LRU_CACHE_ENTRY_NIL) || (lru_cache_get_entry(s, e->mru)->lru == i));
-
-    assert(s->lru != LRU_CACHE_ENTRY_NIL);
-    assert(s->mru == i);
-
-    return i;
+    const unsigned char *d = (const unsigned char *)data;
+    while (size--) state = ((state << 5) + state) + *d++;
+    return state;
 }
 
-int lru_cache_align(uint32_t size, uint32_t align, uint32_t *aligned_size_)
+int
+cm_align(uint32_t size, uint32_t align, uint32_t *size_a_)
 {
-    uint32_t aligned_size = (size + align - 1) & ~(align - 1);
+    uint32_t size_a = (size + align - 1) & ~(align - 1);
 
-    if (aligned_size_) {
-        *aligned_size_ = aligned_size;
+    if (size_a_) {
+        *size_a_ = size_a;
     }
 
-    if (aligned_size < size) {
+    if (size_a < size) {
         return EOVERFLOW;
     }
 
-    if (size == 0 || align == 0 || align > sizeof(struct lru_cache_entry)) {
+    if (size == 0 || align == 0 || align > sizeof(cm_entry)) {
         return EINVAL;
     }
 
     return 0;
 }
 
-int lru_cache_init(
-    struct lru_cache *s,
-    uint32_t aligned_size,
-    lru_cache_hash_t hash,
-    lru_cache_compare_t compare,
-    lru_cache_destroy_t destroy)
+void
+check_chain_invariants(cm_cache *cm, uint32_t hash)
 {
-    if (aligned_size == 0) {
-        return EINVAL;
-    }
-
-    if (compare == NULL || hash == NULL) {
-        return EINVAL;
-    }
-
-    s->hashmap = NULL;
-    s->cache = NULL;
-
-    s->destroy = destroy;
-    s->compare = compare;
-    s->hash = hash;
-
-    s->size = aligned_size;
-    s->nmemb = 0;
-
-    s->lru = LRU_CACHE_ENTRY_NIL;
-    s->mru = LRU_CACHE_ENTRY_NIL;
-    return 0;
+    assert(hash == CM_NIL || cm_entry_ptr(cm, cm->hashmap[hash])->clru == CM_NIL);
 }
 
-bool lru_cache_is_full(
-    struct lru_cache *s)
+void
+check_invariants(cm_cache *cm)
 {
-    struct lru_cache_entry *entry = lru_cache_get_entry(s, s->lru);
-    return (entry == NULL) || (entry->clru != s->lru);
+    // The global chain is valid
+    uint32_t visit_count = 0;
+    bool visited[cm->nmemb];
+    memset(visited, 0, sizeof(visited));
+
+    uint32_t i = cm->mru;
+    cm_entry *e;
+    while ((e = cm_entry_ptr(cm, i))) {
+        assert(e->lru == CM_NIL || cm_entry_ptr(cm, e->lru)->mru == i);
+        assert(e->mru == CM_NIL || cm_entry_ptr(cm, e->mru)->lru == i);
+        assert(!visited[i]);
+        visit_count += (visited[i] |= 1);
+        i = e->lru;
+    }
+
+    assert(cm->mru == CM_NIL || cm_entry_ptr(cm, cm->mru)->mru == CM_NIL);
+    assert(cm->lru == CM_NIL || cm_entry_ptr(cm, cm->lru)->lru == CM_NIL);
 }
 
-int lru_cache_calc_sizes(size_t aligned_size, size_t nmemb, size_t *hashmap_bytes, size_t *cache_bytes)
+int
+cm_required_bytes(uint32_t size_a, uint32_t nmemb, size_t *hashmap_bytes, size_t *cache_bytes)
 {
-    uint32_t nmemb_max = SIZE_MAX / (sizeof(struct lru_cache_entry) + aligned_size);
+    uint32_t nmemb_max = SIZE_MAX / (sizeof(cm_entry) + size_a);
 
     if (nmemb == 0) {
         return EINVAL;
@@ -171,73 +104,204 @@ int lru_cache_calc_sizes(size_t aligned_size, size_t nmemb, size_t *hashmap_byte
     }
 
     if (hashmap_bytes) {
-        *hashmap_bytes = nmemb * sizeof(uint32_t);
+        *hashmap_bytes = nmemb * (sizeof(uint32_t));
     }
 
     if (cache_bytes) {
-        *cache_bytes = nmemb * (sizeof(struct lru_cache_entry) + aligned_size);
+        *cache_bytes = nmemb * (sizeof(cm_entry) + size_a);
     }
 
     return 0;
 }
 
-int lru_cache_set_nmemb(
-    struct lru_cache *s,
-    uint32_t nmemb,
-    size_t *hashmap_bytes,
-    size_t *cache_bytes)
+cm_entry *
+cm_entry_ptr(cm_cache *cm, uint32_t slot)
+{
+    uintptr_t cache = (uintptr_t)cm->cache;
+    size_t offset = slot * (sizeof(cm_entry) + cm->size);
+    return (slot != CM_NIL) ? (cm_entry *)(cache + offset) : NULL;
+}
+
+void
+cm_move_chain(cm_cache *cm, uint32_t slot, uint32_t old_hash, uint32_t new_hash)
+{
+    assert(old_hash != CM_NIL);
+
+    uint32_t *index;
+    cm_entry *e = cm_entry_ptr(cm, slot);
+
+    if (new_hash == CM_NIL) {
+        index = &slot;
+    } else if (cm->hashmap[new_hash] != slot) {
+        index = &cm->hashmap[new_hash];
+    } else {
+        assert(old_hash == new_hash);
+        return;
+    }
+
+    if (e->clru != CM_NIL) {
+        cm_entry_ptr(cm, e->clru)->cmru = e->cmru;
+    } else {
+        // no lru pointer in collision chain
+    }
+
+    if (e->cmru != CM_NIL) {
+        cm_entry_ptr(cm, e->cmru)->clru = e->clru;
+    } else if (e->clru != slot) {
+        cm->hashmap[old_hash] = e->clru;
+    }
+
+    // If removal requested, "*index == i" => no longer in any chain.
+    e->clru = *index;
+
+    // If relocation requested, "s->hashmap[new_hash]->cmru = i" => first element in new chain.
+    if (e->clru != CM_NIL) {
+        cm_entry_ptr(cm, e->clru)->cmru = slot;
+    }
+
+    // Element is the most used in both cases
+    e->cmru = CM_NIL;
+
+    // If relocation requested: "s->hashmap[new_hash] = i" => first element in new chain.
+    // If removal requested: "i = i" => NOP
+    *index = slot;
+
+    check_invariants(cm);
+}
+
+void
+cm_make_lru(cm_cache *cm, uint32_t slot)
+{
+    if (cm->lru == slot) return;
+
+    cm_entry *e = cm_entry_ptr(cm, slot);
+
+    unlink(cm, e);
+
+    e->mru = cm->lru;
+    cm_entry_ptr(cm, e->mru)->lru = slot;
+    cm->lru = slot;
+
+    assert((e->lru == CM_NIL) || (cm_entry_ptr(cm, e->lru)->mru == slot));
+    assert((e->mru == CM_NIL) || (cm_entry_ptr(cm, e->mru)->lru == slot));
+
+    assert(cm->mru != CM_NIL);
+    assert(cm->lru == slot);
+}
+
+void
+cm_make_mru(cm_cache *cm, uint32_t slot)
+{
+    if (cm->mru == slot) return;
+
+    cm_entry *e = cm_entry_ptr(cm, slot);
+
+    unlink(cm, e);
+
+    e->lru = cm->mru;
+    cm_entry_ptr(cm, e->lru)->mru = slot;
+
+    cm->mru = slot;
+
+    assert((e->lru == CM_NIL) || (cm_entry_ptr(cm, e->lru)->mru == slot));
+    assert((e->mru == CM_NIL) || (cm_entry_ptr(cm, e->mru)->lru == slot));
+
+    assert(cm->lru != CM_NIL);
+    assert(cm->mru == slot);
+}
+
+int
+cm_init(cm_cache *s, uint32_t size_a, cm_hash *hash, cm_compare *compare, cm_destroy *destroy)
+{
+    if (size_a == 0) {
+        return EINVAL;
+    }
+
+    if (compare == NULL || hash == NULL) {
+        return EINVAL;
+    }
+
+    s->hashmap = NULL;
+    s->cache = NULL;
+
+    s->psel_bit = 0;
+    s->psel_ctr = 0;
+    s->leader_set_size = 0;
+
+    s->destroy = destroy;
+    s->compare = compare;
+    s->hash = hash;
+
+    s->size = size_a;
+    s->nmemb = 0;
+
+    s->lru = CM_NIL;
+    s->mru = CM_NIL;
+    return 0;
+}
+
+bool
+cm_is_full(cm_cache *s)
+{
+    cm_entry *entry = cm_entry_ptr(s, s->lru);
+    return (entry == NULL) || (entry->clru != s->lru);
+}
+
+int
+cm_set_size(cm_cache *cm, uint32_t nmemb, size_t *hashmap_bytes, size_t *cache_bytes)
 {
     int rv = 0;
     uint32_t i;
     uint32_t old_hash;
     uint32_t new_hash;
-    struct lru_cache_entry *e;
+    cm_entry *e;
 
-    rv = lru_cache_calc_sizes(s->size, nmemb, hashmap_bytes, cache_bytes);
+    rv = cm_required_bytes(cm->size, nmemb, hashmap_bytes, cache_bytes);
     if (rv != 0) {
         return rv;
     }
 
-    if (nmemb < s->nmemb) {
-        for (i = nmemb; i < s->nmemb; i++) {
-            e = lru_cache_get_entry(s, i);
-            old_hash = s->hash(e->key, s->nmemb);
+    if (nmemb < cm->nmemb) {
+        for (i = nmemb; i < cm->nmemb; i++) {
+            e = cm_entry_ptr(cm, i);
+            old_hash = cm->hash(e->key, cm->nmemb);
 
-            if (e->clru != i && s->destroy) {
-                s->destroy(e->key, i);
+            if (e->clru != i && cm->destroy) {
+                cm->destroy(e->key, i);
             }
 
-            remove_from_global_chain(s, e);
-            update_local_chain(s, i, e, old_hash, LRU_CACHE_ENTRY_NIL);
+            cm_move_chain(cm, i, old_hash, CM_NIL);
+            unlink(cm, e);
         }
 
-        assert(s->lru < nmemb);
-        assert(s->mru < nmemb);
+        assert(cm->lru < nmemb);
+        assert(cm->mru < nmemb);
 
-        for (i = s->mru; (e = lru_cache_get_entry(s, i)) && e->clru != i; i = e->lru) {
-            assert(i < s->nmemb);
+        for (i = cm->mru; (e = cm_entry_ptr(cm, i)) && e->clru != i; i = e->lru) {
+            assert(i < cm->nmemb);
 
-            old_hash = s->hash(e->key, s->nmemb);
-            new_hash = s->hash(e->key, nmemb);
-            update_local_chain(s, i, e, old_hash, new_hash);
+            old_hash = cm->hash(e->key, cm->nmemb);
+            new_hash = cm->hash(e->key, nmemb);
+            cm_move_chain(cm, i, old_hash, new_hash);
         }
 
-        s->nmemb = nmemb;
+        cm->nmemb = nmemb;
     }
 
-    s->try_nmemb = nmemb;
+    cm->try_nmemb = nmemb;
     return rv;
 }
 
-int lru_cache_set_memory(struct lru_cache *s, void *hashmap, void *cache)
+int
+cm_set_data(cm_cache *s, void *hashmap, void *cache)
 {
     uint32_t i;
     uint32_t old_hash;
     uint32_t new_hash;
-    struct lru_cache_entry *e;
+    cm_entry *e;
 
     size_t hashmap_bytes = s->try_nmemb * sizeof(*s->hashmap);
-    size_t cache_bytes = s->try_nmemb * (sizeof(struct lru_cache_entry) + s->size);
+    size_t cache_bytes = s->try_nmemb * (sizeof(cm_entry) + s->size);
 
     if (UINTPTR_MAX - (uintptr_t)cache < cache_bytes) {
         return EOVERFLOW;
@@ -252,40 +316,40 @@ int lru_cache_set_memory(struct lru_cache *s, void *hashmap, void *cache)
 
     if (s->nmemb < s->try_nmemb) {
         for (i = s->nmemb; i < s->try_nmemb; i++) {
-            e = lru_cache_get_entry(s, i);
+            e = cm_entry_ptr(s, i);
 
-            e->lru = (i > s->nmemb) ? (i - 1) : LRU_CACHE_ENTRY_NIL;
+            e->lru = (i > s->nmemb) ? (i - 1) : CM_NIL;
             e->mru = (i < s->try_nmemb - 1) ? (i + 1) : s->lru;
 
             /*
              * The member clru of a cache entry is tri-state:
              *
              * 1. Not in a collision chain (e->clru == i)
-             * 2. The last element of a collision chain (e->clru == LRU_CACHE_ENTRY_NIL)
+             * 2. The last element of a collision chain (e->clru == CM_NIL)
              * 3. Any other element of a collision chain (e->clru != i && e->clru != lru_cache_entry_nil)
              */
             e->clru = i;
-            e->cmru = LRU_CACHE_ENTRY_NIL;
+            e->cmru = CM_NIL;
 
-            s->hashmap[i] = LRU_CACHE_ENTRY_NIL;
+            s->hashmap[i] = CM_NIL;
         }
 
-        if (s->lru != LRU_CACHE_ENTRY_NIL) {
-            lru_cache_get_entry(s, s->lru)->lru = s->try_nmemb - 1;
+        if (s->lru != CM_NIL) {
+            cm_entry_ptr(s, s->lru)->lru = s->try_nmemb - 1;
         }
 
         s->lru = s->nmemb;
 
-        if (s->mru == LRU_CACHE_ENTRY_NIL) {
+        if (s->mru == CM_NIL) {
             s->mru = s->try_nmemb - 1;
         }
 
-        for (i = s->mru; (e = lru_cache_get_entry(s, i)) && e->clru != i; i = e->lru) {
+        for (i = s->mru; (e = cm_entry_ptr(s, i)) && e->clru != i; i = e->lru) {
             assert(i < s->nmemb && i < s->try_nmemb);
 
             old_hash = s->hash(e->key, s->nmemb);
             new_hash = s->hash(e->key, s->try_nmemb);
-            update_local_chain(s, i, e, old_hash, new_hash);
+            cm_move_chain(s, i, old_hash, new_hash);
         }
 
         s->nmemb = s->try_nmemb;
@@ -296,18 +360,12 @@ int lru_cache_set_memory(struct lru_cache *s, void *hashmap, void *cache)
     return 0;
 }
 
-struct lru_cache_entry *lru_cache_get_entry(struct lru_cache *s, uint32_t i)
-{
-    char *cache = s->cache;
-    size_t offset = i * (sizeof(struct lru_cache_entry) + s->size);
-    return (i != LRU_CACHE_ENTRY_NIL) ? (struct lru_cache_entry *)(cache + offset) : NULL;
-}
-
-uint32_t lru_cache_put(struct lru_cache *s, const void *key)
+uint32_t
+cm_put_key(cm_cache *s, const void *key)
 {
     // 11. Cache miss -- determine insertion mode
     uint32_t i = s->lru;
-    struct lru_cache_entry *e = lru_cache_get_entry(s, i);
+    cm_entry *e = cm_entry_ptr(s, i);
     uint32_t new_hash = s->hash(key, s->nmemb);
     uint32_t old_hash = new_hash;
 
@@ -320,45 +378,51 @@ uint32_t lru_cache_put(struct lru_cache *s, const void *key)
     }
 
     memcpy(e->key, key, s->size);
-    return lru_cache_update_entry(s, i, e, old_hash, new_hash);
+    cm_make_mru(s, i);
+    cm_move_chain(s, i, old_hash, new_hash);
+    return i;
 }
 
-// @todo: Atomic access
-uint32_t lru_cache_get_or_put(struct lru_cache *s, const void *key, bool *put)
+uint32_t
+cm_get_or_put_key(cm_cache *s, const void *key, bool *put)
 {
     if (s->nmemb == 0) {
-        return LRU_CACHE_ENTRY_NIL;
+        return CM_NIL;
     }
 
     // 3. Extract Components
     uint32_t new_hash = s->hash(key, s->nmemb);
-    uint32_t old_hash = new_hash;
+    // uint32_t old_hash = new_hash;
     uint32_t i = s->hashmap[new_hash];
-    struct lru_cache_entry *e = NULL;
+    cm_entry *e = NULL;
 
     // 4. Check for cache hit
-    while ((e = lru_cache_get_entry(s, i))) {
+    while ((e = cm_entry_ptr(s, i))) {
         if (s->compare(e->key, key) == 0) {
             if (put) {
                 *put = false;
             }
 
             // 8. Protomote to LRU
-            return lru_cache_update_entry(s, i, e, old_hash, new_hash);
+            cm_make_mru(s, i);
+            cm_move_chain(s, i, new_hash, new_hash);
+            return i;
         }
 
+        assert(e->clru != i);
         i = e->clru;
     }
 
     if (!put) {
-        return LRU_CACHE_ENTRY_NIL;
+        return CM_NIL;
     }
 
     *put = true;
-    return lru_cache_put(s, key);
+    return cm_put_key(s, key);
 }
 
-void lru_cache_flush(struct lru_cache *s)
+void
+cm_flush(cm_cache *s)
 {
     /*
      * When flushing the cache, there are three possible strategies:
@@ -378,15 +442,15 @@ void lru_cache_flush(struct lru_cache *s)
      */
     uint32_t i;
     uint32_t old_hash;
-    struct lru_cache_entry *e;
+    cm_entry *e;
 
-    for (i = s->mru; (e = lru_cache_get_entry(s, i)) && e->clru != i; i = e->lru) {
+    for (i = s->mru; (e = cm_entry_ptr(s, i)) && e->clru != i; i = e->lru) {
         old_hash = s->hash(e->key, s->nmemb);
 
         if (s->destroy) {
             s->destroy(e->key, i);
         }
 
-        update_local_chain(s, i, e, old_hash, LRU_CACHE_ENTRY_NIL);
+        cm_move_chain(s, i, old_hash, CM_NIL);
     }
 }
