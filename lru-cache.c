@@ -390,10 +390,14 @@ uint32_t lru_cache_put(struct lru_cache *s, const void *key)
     uint32_t i = s->lru;
     struct lru_cache_entry *e = lru_cache_get_entry(s, i);
     uint32_t new_hash = s->hash(key, s->nmemb);
-    uint32_t old_hash = s->hash(e->key, s->nmemb);
+    uint32_t old_hash = new_hash;
 
-    if (e->clru != i && s->destroy) {
-        s->destroy(e->key, i);
+    if (e->clru != i) {
+        old_hash = s->hash(e->key, s->nmemb);
+
+        if (s->destroy) {
+            s->destroy(e->key, i);
+        }
     }
 
     memcpy(e->key, key, s->size);
