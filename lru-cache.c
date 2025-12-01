@@ -127,13 +127,17 @@ cm_move_chain(cm_cache *cm, uint32_t slot, uint32_t old_hash, uint32_t new_hash)
 {
     assert(old_hash != CM_NIL);
 
-    uint32_t *index;
+    uint32_t *new_head;
     cm_entry *e = cm_entry_ptr(cm, slot);
 
+    if (new_hash == CM_NIL && e->clru != slot && cm->destroy) {
+        cm->destroy(e->key, slot);
+    }
+
     if (new_hash == CM_NIL) {
-        index = &slot;
+        new_head = &slot;
     } else if (cm->hashmap[new_hash] != slot) {
-        index = &cm->hashmap[new_hash];
+        new_head = &cm->hashmap[new_hash];
     } else {
         assert(old_hash == new_hash);
         return;
@@ -151,8 +155,8 @@ cm_move_chain(cm_cache *cm, uint32_t slot, uint32_t old_hash, uint32_t new_hash)
         cm->hashmap[old_hash] = e->clru;
     }
 
-    // If removal requested, "*index == i" => no longer in any chain.
-    e->clru = *index;
+    // If removal requested, "*new_head == i" => no longer in any chain.
+    e->clru = *new_head;
 
     // If relocation requested, "s->hashmap[new_hash]->cmru = i" => first element in new chain.
     if (e->clru != CM_NIL) {
@@ -164,7 +168,9 @@ cm_move_chain(cm_cache *cm, uint32_t slot, uint32_t old_hash, uint32_t new_hash)
 
     // If relocation requested: "s->hashmap[new_hash] = i" => first element in new chain.
     // If removal requested: "i = i" => NOP
-    *index = slot;
+    *new_head = slot;
+
+    assert(e->clru != slot || new_hash == CM_NIL);
 
     check_invariants(cm);
 }
@@ -265,10 +271,6 @@ cm_set_size(cm_cache *cm, uint32_t nmemb, size_t *hashmap_bytes, size_t *cache_b
         for (i = nmemb; i < cm->nmemb; i++) {
             e = cm_entry_ptr(cm, i);
             old_hash = cm->hash(e->key, cm->nmemb);
-
-            if (e->clru != i && cm->destroy) {
-                cm->destroy(e->key, i);
-            }
 
             cm_move_chain(cm, i, old_hash, CM_NIL);
             unlink(cm, e);
@@ -391,9 +393,9 @@ cm_get_or_put_key(cm_cache *s, const void *key, bool *put)
     }
 
     // 3. Extract Components
-    uint32_t new_hash = s->hash(key, s->nmemb);
+    uint32_t old_hash = s->hash(key, s->nmemb);
     // uint32_t old_hash = new_hash;
-    uint32_t i = s->hashmap[new_hash];
+    uint32_t i = s->hashmap[old_hash];
     cm_entry *e = NULL;
 
     // 4. Check for cache hit
@@ -405,7 +407,7 @@ cm_get_or_put_key(cm_cache *s, const void *key, bool *put)
 
             // 8. Protomote to LRU
             cm_make_mru(s, i);
-            cm_move_chain(s, i, new_hash, new_hash);
+            cm_move_chain(s, i, old_hash, old_hash);
             return i;
         }
 
@@ -446,10 +448,6 @@ cm_flush(cm_cache *s)
 
     for (i = s->mru; (e = cm_entry_ptr(s, i)) && e->clru != i; i = e->lru) {
         old_hash = s->hash(e->key, s->nmemb);
-
-        if (s->destroy) {
-            s->destroy(e->key, i);
-        }
 
         cm_move_chain(s, i, old_hash, CM_NIL);
     }

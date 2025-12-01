@@ -5,12 +5,14 @@
 
 #define C 1024
 
-uint32_t hash(const void *a_, uint32_t b)
+static uint32_t
+hash(const void *a_, uint32_t b)
 {
     return *(uint32_t *)a_ % b;
 }
 
-int compare(const void *a_, const void *b_)
+static int
+compare(const void *a_, const void *b_)
 {
     uint32_t a = *(uint32_t *)a_;
     uint32_t b = *(uint32_t *)b_;
@@ -19,16 +21,47 @@ int compare(const void *a_, const void *b_)
     return 0;
 }
 
-uint32_t warmup_size(uint32_t size)
+static cm_cache *
+new_cache(void)
+{
+    cm_cache *cm;
+    unsigned char *memory;
+    void *hashmap;
+    void *cache;
+
+    size_t hashmap_bytes, cache_bytes;
+    cm_required_bytes(sizeof(uint32_t), C, &hashmap_bytes, &cache_bytes);
+
+    memory = malloc(sizeof(cm_cache) + hashmap_bytes + cache_bytes);
+
+    cm = (cm_cache *)&memory[0];
+    hashmap = &memory[sizeof(cm_cache)];
+    cache = &memory[sizeof(cm_cache) + hashmap_bytes];
+
+    cm_init(cm, sizeof(uint32_t), hash, compare, NULL);
+    cm_set_size(cm, C, NULL, NULL);
+    cm_set_data(cm, hashmap, cache);
+    return cm;
+}
+
+static void
+free_cache(cm_cache *cm)
+{
+    free(cm);
+}
+
+static uint32_t
+warmup_size(uint32_t size)
 {
     return (size < 1000) ? 1000 : size;
 }
 
-double cyclic_access(cm_cache *cm, uint32_t repeat, uint32_t size)
+static double
+cyclic_access(uint32_t repeat, uint32_t size)
 {
     bool put;
     uint32_t hits = 0;
-    cm_flush(cm);
+    cm_cache *cm = new_cache();
 
     for (uint32_t j = 0, el = 0; j < warmup_size(size); j++) {
         cm_get_or_put_key(cm, &el, &put);
@@ -43,21 +76,25 @@ double cyclic_access(cm_cache *cm, uint32_t repeat, uint32_t size)
         }
     }
 
+    free_cache(cm);
     return (hits * 100.0f) / (repeat * size);
 }
 
-uint32_t entropy(void)
+static uint32_t
+entropy(void)
 {
     uint32_t r;
     getentropy(&r, sizeof(r));
     return r;
 }
 
-double mixed_access(cm_cache *cm, uint32_t hot)
+static double
+mixed_access(uint32_t hot)
 {
     bool put;
     uint32_t hits = 0;
-    cm_flush(cm);
+
+    cm_cache *cm = new_cache();
 
     uint32_t hot_size = 0.5 * C;
     uint32_t cold_size = 4 * C;
@@ -85,32 +122,26 @@ double mixed_access(cm_cache *cm, uint32_t hot)
         hits += !put;
     }
 
+    free_cache(cm);
     return (hits * 100.0f) / 100000;
 }
 
-double zipf_access(cm_cache *cm, uint32_t alpha)
+static double
+zipf_access(uint32_t alpha)
 {
     (void)alpha;
-    cm_flush(cm);
+    // cm_flush(cm);
     return 0.0;
 }
 
-int main()
+int
+main()
 {
-    size_t hashmap_bytes, cache_bytes;
-    cm_cache cm;
-    cm_init(&cm, sizeof(uint32_t), hash, compare, NULL);
-
-    cm_set_size(&cm, C, &hashmap_bytes, &cache_bytes);
-    void *hashmap = malloc(hashmap_bytes);
-    void *cache = malloc(cache_bytes);
-    cm_set_data(&cm, hashmap, cache);
-
     printf("                    LRU  FIFO Adaptive-LRU\n");
-    printf("Streaming 2xC     %5.1f  \n", cyclic_access(&cm, 5, 2*C));
-    printf("Large Loop 1.25xC %5.1f  \n", cyclic_access(&cm, 10, 1.25*C));
-    printf("Small Loop 0.5xC  %5.1f  \n", cyclic_access(&cm, 20, 0.5*C));
-    printf("Mixed 80/20       %5.1f  \n", mixed_access(&cm, 80));
-    printf("Zipf a=1.0        %5.1f  \n", zipf_access(&cm, 1.0));
-    printf("Zipf a=1.1        %5.1f  \n", zipf_access(&cm, 1.1));
+    printf("Streaming 2xC     %5.1f  \n", cyclic_access(5, 2*C));
+    printf("Large Loop 1.25xC %5.1f  \n", cyclic_access(10, 1.25*C));
+    printf("Small Loop 0.5xC  %5.1f  \n", cyclic_access(20, 0.5*C));
+    printf("Mixed 80/20       %5.1f  \n", mixed_access(80));
+    printf("Zipf a=1.0        %5.1f  \n", zipf_access(1.0));
+    printf("Zipf a=1.1        %5.1f  \n", zipf_access(1.1));
 }
