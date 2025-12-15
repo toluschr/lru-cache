@@ -4,9 +4,6 @@ CC := gcc
 CFLAGS := -O3 -g0 -Wall -Wextra -Werror -pedantic -std=c11 -D_XOPEN_SOURCE=700
 CFLAGS += -I include
 
-CFLAGS += -fsanitize=address
-LDFLAGS += -fsanitize=address
-
 .PHONY: all
 all: lib/lru-cache.o
 
