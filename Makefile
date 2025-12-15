@@ -1,21 +1,22 @@
+TOPDIR ?= $(or $(shell git rev-parse --show-superproject-working-tree),$(shell git rev-parse --show-toplevel))
+
 CC := gcc
-CFLAGS := -O3 -Wall -Wextra -Werror -pedantic -std=c11 -D_XOPEN_SOURCE=700
+CFLAGS := -O3 -g0 -Wall -Wextra -Werror -pedantic -std=c11 -D_XOPEN_SOURCE=700
+CFLAGS += -I include
 
 CFLAGS += -fsanitize=address
 LDFLAGS += -fsanitize=address
 
 .PHONY: all
-all: lru-cache lru-cache.o
+all: lib/lru-cache.o
 
 .PHONY: clean
 clean:
-	-rm -f lru-cache lru-cache.o test.o
+	-rm -f lib/lru-cache.o test/lru-cache.o test/lru-cache
 
-lru-cache: lru-cache.o test.o
-	$(CC) $(LDFLAGS) $^ -o $@
+test/lru-cache: lib/lru-cache.o test/lru-cache.o
+	$(CC) $^ $(LDFLAGS) -o $@
 
-test.o: test.c lru-cache.h Makefile
-	$(CC) $(CFLAGS) $< -c -o $@
 
-lru-cache.o: lru-cache.c lru-cache.h Makefile
-	$(CC) $(CFLAGS) $< -c -o $@
+%.o: %.c include/lru-cache.h Makefile
+	$(CC) $< $(CFLAGS) -c -o $@
