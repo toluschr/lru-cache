@@ -7,6 +7,20 @@
 #include <memory.h>
 #include <errno.h>
 
+uint64_t lru_cache_fnv1a64_step(uint64_t state, const void *data, size_t size)
+{
+    const unsigned char *d = (const unsigned char *)data;
+    while (size--) state = (state ^ *d++) * 0x00000100000001b3ull;
+    return state;
+}
+
+uint64_t lru_cache_djb2_step(uint64_t state, const void *data, size_t size)
+{
+    const unsigned char *d = (const unsigned char *)data;
+    while (size--) state = ((state << 5) + state) + *d++;
+    return state;
+}
+
 static void remove_from_global_chain(struct lru_cache *s, struct lru_cache_entry *e)
 {
     if (e->lru != LRU_CACHE_ENTRY_NIL) {

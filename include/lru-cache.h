@@ -12,6 +12,9 @@
 
 #define LRU_CACHE_ENTRY_NIL UINT32_MAX
 
+#define LRU_CACHE_FNV1A64_IV 0xcbf29ce484222325ull
+#define LRU_CACHE_DJB2_IV 5381ull
+
 /**
  * @struct lru_cache_entry
  * @brief Structure representing an entry in the LRU cache.
@@ -83,6 +86,9 @@ struct lru_cache {
     uint32_t lru; ///< Pointer to the least recently used entry.
     uint32_t mru; ///< Pointer to the most recently used entry.
 };
+
+uint64_t lru_cache_fnv1a64_step(uint64_t state, const void *data, size_t size);
+uint64_t lru_cache_djb2_step(uint64_t state, const void *data, size_t size);
 
 bool lru_cache_is_full(
     struct lru_cache *s);
