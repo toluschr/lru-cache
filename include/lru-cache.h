@@ -8,10 +8,10 @@
 #include <sys/types.h>
 
 #define LRU_CACHE_ITERATE_MRU_TO_LRU(C, I, E) \
-    for ((I) = (C)->mru; (E = lru_cache_get_entry((C), (I))) && (E)->clru != (I); (I) = (E)->lru)
+    for ((I) = (C)->mru; (E = lru_cache_get_entry((C), (I))) && (E)->clru != (I); ) \
+        for (uint32_t TMP = (E)->lru; 0; (I) = TMP)
 
 #define LRU_CACHE_ENTRY_NIL UINT32_MAX
-
 #define LRU_CACHE_FNV1A64_IV 0xcbf29ce484222325ull
 #define LRU_CACHE_DJB2_IV 5381ull
 
