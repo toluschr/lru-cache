@@ -9,7 +9,7 @@
 
 #define LRU_CACHE_ITERATE_MRU_TO_LRU(C, I, E) \
     for ((I) = (C)->mru; (E = lru_cache_get_entry((C), (I))) && (E)->clru != (I); ) \
-        for (uint32_t TMP = (E)->lru; 0; (I) = TMP)
+        for (uint32_t __TMP = (E)->lru, __ITR = 0; !__ITR; (I) = __TMP, __ITR++)
 
 #define LRU_CACHE_ENTRY_NIL UINT32_MAX
 #define LRU_CACHE_FNV1A64_IV 0xcbf29ce484222325ull
